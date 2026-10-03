@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Haluski: Misión a la Base</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #05060f; color: #dfe9ff; font-family: "Trebuchet MS", Verdana, sans-serif; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  canvas { background: #070a1c; border: 2px solid #2b3a7a; border-radius: 6px; max-width: 100vw; max-height: 86vh; box-shadow: 0 0 30px #1b2a7a88; }
+  #ayuda { margin-top: 8px; font-size: 14px; color: #8fa3d9; text-align: center; padding: 0 8px; }
+  kbd { background: #1a2350; border: 1px solid #3a4a94; border-radius: 4px; padding: 1px 6px; color: #fff; }
+</style>
+</head>
+<body>
+<canvas id="juego" width="800" height="600"></canvas>
+<div id="ayuda"><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> o <kbd>WASD</kbd> mover · <kbd>Espacio</kbd> disparar · <kbd>P</kbd> pausa · <kbd>M</kbd> sonido</div>
+<script>
+(() => {
+"use strict";
+const cv = document.getElementById("juego");
+const ctx = cv.getContext("2d");
+const W = cv.width, H = cv.height;
+const TOTAL_NIVELES = 10;
+
+// ---------- Entrada ----------
+const teclas = {};
+const pulsada = {};
+addEventListener("keydown", e => {
+  if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) e.preventDefault();
+  if (!teclas[e.code]) pulsada[e.code] = true;
+  teclas[e.code] = true;
+  initAudio();
+});
+addEventListener("keyup", e => { teclas[e.code] = false; });
+const hit = c => { const r = !!pulsada[c]; return r; };
+const izq = () => teclas.ArrowLeft || teclas.KeyA;
+const der = () => teclas.ArrowRight || teclas.KeyD;
+const arr = () => teclas.ArrowUp || teclas.KeyW;
+const abj = () => teclas.ArrowDown || teclas.KeyS;
+const disp = () => teclas.Space;
+
+// ---------- Sonido ----------
+let actx = null, sonido = true;
+function initAudio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (actx && actx.state === "suspended") actx.resume();
+}
+function beep(f1, f2, dur, tipo = "square", vol = 0.06) {
+  if (!actx || !sonido) return;
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = tipo;
+  o.frequency.setValueAtTime(f1, actx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), actx.currentTime + dur);
+  g.gain.setValueAtTime(vol, actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
+  o.connect(g); g.connect(actx.destination);
+  o.start(); o.stop(actx.currentTime + dur);
+}
+const sfx = {
+  disparo: () => beep(900, 300, 0.1, "square", 0.03),
+  explosion: () => beep(220, 40, 0.3, "sawtooth", 0.07),
+  golpe: () => beep(300, 60, 0.35, "sawtooth", 0.09),
+  bonus: () => { beep(500, 900, 0.12, "triangle", 0.08); setTimeout(() => beep(900, 1400, 0.12, "triangle", 0.08), 90); },
+  nivel: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, f, 0.18, "triangle", 0.08), i * 120)),
+  derrota: () => [400, 300, 200, 100].forEach((f, i) => setTimeout(() => beep(f, f * 0.7, 0.25, "sawtooth", 0.08), i * 160)),
+};
+
+// ---------- Utilidades ----------
+const rnd = (a, b) => a + Math.random() * (b - a);
+const rint = (a, b) => Math.floor(rnd(a, b + 1));
+const choque = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < a.r + b.r;
+function texto(t, x, y, tam, color = "#fff", align = "center", sombra = true) {
+  ctx.font = `bold ${tam}px "Trebuchet MS", Verdana, sans-serif`;
+  ctx.textAlign = align; ctx.textBaseline = "middle";
+  if (sombra) { ctx.fillStyle = "#000a"; ctx.fillText(t, x + 2, y + 2); }
+  ctx.fillStyle = color; ctx.fillText(t, x, y);
+}
+
+// ---------- Niveles ----------
+// duracion en segundos hasta aparecer la base; el resto escala con el nivel
+function configNivel(n) {
+  return {
+    nombre: ["Órbita Terrestre","Cinturón Lunar","Nube de Polvo","Campo de Asteroides","Tormenta Solar",
+             "Nebulosa Carmesí","Zona Hostil","Cementerio Estelar","Agujero Negro","La Base Final"][n - 1],
+    duracion: 28 + n * 4,
+    spawnEnemigo: Math.max(0.55, 1.6 - n * 0.1),
+    spawnMeteoro: Math.max(0.35, 1.3 - n * 0.09),
+    velEnemigo: 70 + n * 9,
+    velMeteoro: 110 + n * 14,
+    probTirador: Math.min(0.75, 0.1 + n * 0.07),
+    probZigzag: n >= 3 ? Math.min(0.5, 0.1 + (n - 3) * 0.06) : 0,
+    jefe: n === 5 || n === 10,
+  };
+}
+
+// ---------- Estado ----------
+let estado = "menu"; // menu, intro, jugando, pausa, jefe, aterrizando, nivelCompleto, derrota, victoria
+let nivel = 1, cfg, t = 0, progreso = 0, puntos = 0, record = 0;
+try { record = +localStorage.getItem("haluski_record") || 0; } catch (e) {}
+let jugador, balas, enemigos, meteoros, balasEnemigas, particulas, bonus, base, jefe;
+let temporizadorIntro = 0, spawnE = 0, spawnM = 0, sacudida = 0;
+const estrellas = Array.from({ length: 90 }, () => ({ x: rnd(0, W), y: rnd(0, H), z: rnd(0.3, 1.6) }));
+
+function nuevoJugador(vidas = 3) {
+  return { x: W / 2, y: H - 80, r: 16, vel: 300, vidas, escudo: 0, invul: 0, cool: 0, doble: 0, vivo: true };
+}
+function iniciarJuego() {
+  nivel = 1; puntos = 0; jugador = nuevoJugador(3);
+  empezarNivel();
+}
+function empezarNivel() {
+  cfg = configNivel(nivel);
+  balas = []; enemigos = []; meteoros = []; balasEnemigas = []; particulas = []; bonus = [];
+  base = null; jefe = null; progreso = 0; spawnE = 1; spawnM = 0.5;
+  jugador.x = W / 2; jugador.y = H - 80; jugador.invul = 2; jugador.cool = 0;
+  temporizadorIntro = 2.6; estado = "intro";
+}
+
+// ---------- Efectos ----------
+function explosion(x, y, n = 16, color = "#ffb347", vel = 180) {
+  for (let i = 0; i < n; i++) {
+    const a = rnd(0, 6.283), v = rnd(30, vel);
+    particulas.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, vida: rnd(0.3, 0.8), max: 0.8, color, tam: rnd(1.5, 4) });
+  }
+}
+
+// ---------- Creación ----------
+function crearEnemigo() {
+  const r = Math.random();
+  let tipo = "explorador";
+  if (r < cfg.probZigzag) tipo = "zigzag";
+  else if (r < cfg.probZigzag + cfg.probTirador) tipo = "tirador";
+  const e = { tipo, x: rnd(40, W - 40), y: -30, r: 18, vida: 1, base: 0, fase: rnd(0, 6.28), cool: rnd(0.8, 2) };
+  e.base = e.x;
+  if (tipo === "tirador") { e.vida = 2 + (nivel > 6 ? 1 : 0); e.r = 20; }
+  if (tipo === "zigzag") e.vida = 1;
+  enemigos.push(e);
+}
+function crearMeteoro() {
+  const r = rnd(16, 34);
+  meteoros.push({ x: rnd(r, W - r), y: -r, r, vx: rnd(-40, 40), vy: cfg.velMeteoro * rnd(0.8, 1.3), rot: rnd(0, 6), vrot: rnd(-2, 2),
+    forma: Array.from({ length: 9 }, (_, i) => rnd(0.75, 1.1)) });
+}
+function crearJefe() {
+  const gran = nivel === 10;
+  jefe = { x: W / 2, y: -80, r: gran ? 55 : 42, vida: gran ? 60 : 25, max: gran ? 60 : 25, dir: 1, cool: 1.5, fase: 0, entrando: true, gran };
+  estado = "jefe";
+}
+function soltarBonus(x, y) {
+  if (Math.random() > 0.17) return;
+  const tipos = ["escudo", "doble", "vida"];
+  bonus.push({ x, y, r: 13, tipo: tipos[rint(0, jugador.vidas >= 5 ? 1 : 2)] });
+}
+function dispararEnemigo(x, y, tx, ty, vel = 220) {
+  const a = Math.atan2(ty - y, tx - x);
+  balasEnemigas.push({ x, y, vx: Math.cos(a) * vel, vy: Math.sin(a) * vel, r: 5 });
+}
+
+// ---------- Daño ----------
+function dañarJugador() {
+  if (jugador.invul > 0 || !jugador.vivo) return;
+  if (jugador.escudo > 0) { jugador.escudo = 0; jugador.invul = 1; sfx.golpe(); explosion(jugador.x, jugador.y, 10, "#6cf"); return; }
+  jugador.vidas--; sacudida = 0.4; sfx.golpe();
+  explosion(jugador.x, jugador.y, 24, "#ff6a4d");
+  jugador.doble = 0;
+  if (jugador.vidas <= 0) {
+    jugador.vivo = false; estado = "derrota"; sfx.derrota();
+    if (puntos > record) { record = puntos; try { localStorage.setItem("haluski_record", record); } catch (e) {} }
+  } else { jugador.invul = 2.2; jugador.x = W / 2; jugador.y = H - 80; }
+}
+
+// ---------- Actualización ----------
+function actualizar(dt) {
+  t += dt;
+  for (const s of estrellas) { s.y += s.z * 60 * dt * (estado === "jugando" || estado === "jefe" ? 1.5 : 1); if (s.y > H) { s.y = 0; s.x = rnd(0, W); } }
+  if (sacudida > 0) sacudida -= dt;
+
+  if (estado === "menu") { if (hit("Enter") || hit("Space")) iniciarJuego(); return; }
+  if (estado === "derrota") { if (hit("Enter")) estado = "menu"; return; }
+  if (estado === "victoria") { if (hit("Enter")) estado = "menu"; return; }
+  if (estado === "pausa") { if (hit("KeyP")) estado = estadoPrevio; return; }
+  if (estado === "nivelCompleto") {
+    temporizadorIntro -= dt;
+    if (temporizadorIntro <= 0 || hit("Enter")) {
+      if (nivel >= TOTAL_NIVELES) { estado = "victoria"; if (puntos > record) { record = puntos; try { localStorage.setItem("haluski_record", record); } catch (e) {} } }
+      else { nivel++; empezarNivel(); }
+    }
+    return;
+  }
+  if (estado === "intro") {
+    temporizadorIntro -= dt;
+    if (temporizadorIntro <= 0) estado = "jugando";
+    moverJugador(dt); actualizarParticulas(dt);
+    return;
+  }
+  if (hit("KeyP")) { estadoPrevio = estado; estado = "pausa"; return; }
+
+  moverJugador(dt);
+
+  // Disparo
+  jugador.cool -= dt;
+  if (disp() && jugador.cool <= 0 && jugador.vivo && estado !== "aterrizando") {
+    jugador.cool = 0.2;
+    if (jugador.doble > 0) {
+      balas.push({ x: jugador.x - 10, y: jugador.y - 14, r: 3 }, { x: jugador.x + 10, y: jugador.y - 14, r: 3 });
+    } else balas.push({ x: jugador.x, y: jugador.y - 18, r: 3 });
+    sfx.disparo();
+  }
+  if (jugador.doble > 0) jugador.doble -= dt;
+  if (jugador.invul > 0) jugador.invul -= dt;
+
+  // Avance del nivel
+  if (estado === "jugando") {
+    progreso += dt / cfg.duracion;
+    spawnE -= dt; spawnM -= dt;
+    if (spawnE <= 0) { crearEnemigo(); spawnE = cfg.spawnEnemigo * rnd(0.7, 1.3); }
+    if (spawnM <= 0) { crearMeteoro(); spawnM = cfg.spawnMeteoro * rnd(0.7, 1.3); }
+    if (progreso >= 1) {
+      progreso = 1;
+      if (cfg.jefe) crearJefe();
+      else { base = { x: W / 2, y: -120, w: 260, h: 90 }; estado = "aterrizando"; }
+    }
+  }
+  if (estado === "aterrizando") {
+    base.y = Math.min(70, base.y + 90 * dt);
+    spawnM -= dt;
+    if (spawnM <= 0 && base.y < 40) { crearMeteoro(); spawnM = 1.2; }
+    // La base debe alcanzarse volando hasta ella
+    if (base.y >= 70 && jugador.vivo && Math.abs(jugador.x - base.x) < base.w / 2 && jugador.y < base.y + base.h + 20) {
+      completarNivel();
+    }
+  }
+
+  // Balas del jugador
+  for (const b of balas) b.y -= 620 * dt;
+  balas = balas.filter(b => b.y > -20);
+
+  // Enemigos
+  for (const e of enemigos) {
+    e.y += cfg.velEnemigo * dt;
+    e.fase += dt * 3;
+    if (e.tipo === "zigzag") e.x = e.base + Math.sin(e.fase * 1.5) * 90;
+    else if (e.tipo === "explorador") e.x = e.base + Math.sin(e.fase * 0.7) * 25;
+    else {
+      e.x = e.base + Math.sin(e.fase * 0.5) * 40;
+      e.cool -= dt;
+      if (e.cool <= 0 && e.y > 0 && e.y < H - 200 && jugador.vivo) { dispararEnemigo(e.x, e.y + 14, jugador.x, jugador.y, 200 + nivel * 8); e.cool = rnd(1.4, 2.4) - nivel * 0.05; }
+    }
+    if (jugador.vivo && choque(e, jugador)) { e.vida = 0; explosion(e.x, e.y); sfx.explosion(); dañarJugador(); }
+  }
+  // Meteoros
+  for (const m of meteoros) {
+    m.x += m.vx * dt; m.y += m.vy * dt; m.rot += m.vrot * dt;
+    if (m.x < m.r || m.x > W - m.r) m.vx *= -1;
+    if (jugador.vivo && choque({ x: m.x, y: m.y, r: m.r * 0.85 }, jugador)) { m.muerto = true; explosion(m.x, m.y, 14, "#b9a28a"); dañarJugador(); }
+  }
+  // Balas enemigas
+  for (const b of balasEnemigas) {
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    if (jugador.vivo && choque(b, jugador)) { b.muerta = true; dañarJugador(); }
+  }
+  // Jefe
+  if (jefe) actualizarJefe(dt);
+
+  // Colisiones: balas del jugador
+  for (const b of balas) {
+    for (const e of enemigos) if (!b.muerta && e.vida > 0 && choque(b, e)) {
+      b.muerta = true; e.vida--;
+      if (e.vida <= 0) { puntos += e.tipo === "tirador" ? 200 : 100; explosion(e.x, e.y, 18); sfx.explosion(); soltarBonus(e.x, e.y); }
+      else explosion(b.x, b.y, 4, "#fff", 80);
+    }
+    for (const m of meteoros) if (!b.muerta && !m.muerto && choque(b, { x: m.x, y: m.y, r: m.r })) {
+      b.muerta = true; explosion(b.x, b.y, 3, "#cdb", 60);
+      if (m.r > 24) { m.r *= 0.9; } // los grandes aguantan
+      if (m.r <= 24) { /* pequeños se destruyen */ }
+    }
+    if (jefe && !b.muerta && !jefe.entrando && choque(b, jefe)) {
+      b.muerta = true; jefe.vida--; puntos += 10; explosion(b.x, b.y, 4, "#fff", 90);
+      if (jefe.vida <= 0) jefeDerrotado();
+    }
+  }
+  // Los meteoros pequeños sí se destruyen con disparos
+  for (const b of balas) for (const m of meteoros) if (!m.muerto && m.r <= 24 && choque(b, { x: m.x, y: m.y, r: m.r })) { m.muerto = true; puntos += 30; explosion(m.x, m.y, 12, "#b9a28a"); sfx.explosion(); b.muerta = true; }
+
+  // Bonus
+  for (const o of bonus) {
+    o.y += 90 * dt;
+    if (jugador.vivo && choque(o, jugador)) {
+      o.cogido = true; sfx.bonus(); puntos += 50;
+      if (o.tipo === "escudo") jugador.escudo = 1;
+      else if (o.tipo === "doble") jugador.doble = 12;
+      else jugador.vidas = Math.min(5, jugador.vidas + 1);
+    }
+  }
+
+  balas = balas.filter(b => !b.muerta);
+  enemigos = enemigos.filter(e => e.vida > 0 && e.y < H + 40);
+  meteoros = meteoros.filter(m => !m.muerto && m.y < H + 60);
+  balasEnemigas = balasEnemigas.filter(b => !b.muerta && b.y < H + 20 && b.y > -20 && b.x > -20 && b.x < W + 20);
+  bonus = bonus.filter(o => !o.cogido && o.y < H + 20);
+  actualizarParticulas(dt);
+}
+let estadoPrevio = "jugando";
+
+function moverJugador(dt) {
+  if (!jugador.vivo) return;
+  let dx = (der() ? 1 : 0) - (izq() ? 1 : 0), dy = (abj() ? 1 : 0) - (arr() ? 1 : 0);
+  if (dx && dy) { dx *= 0.7071; dy *= 0.7071; }
+  jugador.x = Math.max(45, Math.min(W - 20, jugador.x + dx * jugador.vel * dt));
+  const minY = estado === "aterrizando" ? 20 : 120;
+  jugador.y = Math.max(minY, Math.min(H - 30, jugador.y + dy * jugador.vel * dt));
+}
+function actualizarParticulas(dt) {
+  for (const p of particulas) { p.x += p.vx * dt; p.y += p.vy * dt; p.vida -= dt; }
+  particulas = particulas.filter(p => p.vida > 0);
+}
+function actualizarJefe(dt) {
+  const j = jefe;
+  if (j.entrando) { j.y += 60 * dt; if (j.y >= 110) j.entrando = false; return; }
+  j.fase += dt;
+  j.x += j.dir * (j.gran ? 130 : 100) * dt;
+  if (j.x > W - 80) j.dir = -1; if (j.x < 80) j.dir = 1;
+  j.cool -= dt;
+  if (j.cool <= 0 && jugador.vivo) {
+    j.cool = j.gran ? 0.9 : 1.3;
+    const n = j.gran ? 5 : 3;
+    for (let i = 0; i < n; i++) {
+      const a = Math.PI / 2 + (i - (n - 1) / 2) * 0.28;
+      balasEnemigas.push({ x: j.x, y: j.y + j.r * 0.6, vx: Math.cos(a) * 230, vy: Math.sin(a) * 230, r: 6 });
+    }
+    if (j.gran && Math.random() < 0.4) dispararEnemigo(j.x, j.y, jugador.x, jugador.y, 280);
+  }
+  if (jugador.vivo && choque(j, jugador)) dañarJugador();
+}
+function jefeDerrotado() {
+  puntos += jefe.gran ? 3000 : 1000;
+  for (let i = 0; i < 6; i++) explosion(jefe.x + rnd(-40, 40), jefe.y + rnd(-30, 30), 30, i % 2 ? "#ffb347" : "#ff6a4d", 260);
+  sfx.explosion(); balasEnemigas = [];
+  jefe = null; base = { x: W / 2, y: -120, w: 260, h: 90 }; estado = "aterrizando";
+}
+function completarNivel() {
+  const bono = 500 + Math.max(0, jugador.vidas) * 100;
+  puntos += bono; sfx.nivel();
+  estado = "nivelCompleto"; temporizadorIntro = 4;
+  ultimoBono = bono;
+}
+let ultimoBono = 0;
+
+// ---------- Dibujo ----------
+function dibujarNave(x, y, color, acento, esJugador) {
+  ctx.save(); ctx.translate(x, y);
+  if (esJugador) {
+    // llama
+    ctx.fillStyle = `rgba(255,${150 + Math.sin(t * 40) * 60 | 0},50,.9)`;
+    ctx.beginPath(); ctx.moveTo(-6, 14); ctx.lineTo(0, 26 + Math.sin(t * 50) * 4); ctx.lineTo(6, 14); ctx.fill();
+  }
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(16, 14); ctx.lineTo(7, 9); ctx.lineTo(0, 15); ctx.lineTo(-7, 9); ctx.lineTo(-16, 14); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = acento;
+  ctx.beginPath(); ctx.ellipse(0, -3, 4.5, 8, 0, 0, 6.283); ctx.fill();
+  ctx.strokeStyle = "#fff6"; ctx.lineWidth = 1; ctx.stroke();
+  ctx.restore();
+}
+function dibujarEnemigo(e) {
+  ctx.save(); ctx.translate(e.x, e.y);
+  const col = e.tipo === "tirador" ? "#c0392b" : e.tipo === "zigzag" ? "#8e44ad" : "#27ae60";
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.moveTo(0, 18); ctx.lineTo(18, -10); ctx.lineTo(8, -4); ctx.lineTo(0, -14); ctx.lineTo(-8, -4); ctx.lineTo(-18, -10); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#ffe066"; ctx.beginPath(); ctx.arc(0, -2, 4.5, 0, 6.283); ctx.fill();
+  ctx.strokeStyle = "#fff5"; ctx.stroke();
+  ctx.restore();
+}
+function dibujarMeteoro(m) {
+  ctx.save(); ctx.translate(m.x, m.y); ctx.rotate(m.rot);
+  ctx.fillStyle = m.r > 24 ? "#7d6a5a" : "#9a8573";
+  ctx.beginPath();
+  m.forma.forEach((f, i) => { const a = i / m.forma.length * 6.283; const px = Math.cos(a) * m.r * f, py = Math.sin(a) * m.r * f; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+  ctx.closePath(); ctx.fill(); ctx.strokeStyle = "#4a3d33"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = "#0004"; ctx.beginPath(); ctx.arc(m.r * 0.25, -m.r * 0.2, m.r * 0.2, 0, 6.283); ctx.fill();
+  ctx.beginPath(); ctx.arc(-m.r * 0.3, m.r * 0.25, m.r * 0.13, 0, 6.283); ctx.fill();
+  ctx.restore();
+}
+function dibujarBase(b) {
+  ctx.save(); ctx.translate(b.x, b.y);
+  ctx.fillStyle = "#3a4a8a"; ctx.fillRect(-b.w / 2, 0, b.w, b.h);
+  ctx.fillStyle = "#56a0ff"; ctx.fillRect(-b.w / 2, 0, b.w, 10);
+  ctx.fillStyle = "#223"; ctx.fillRect(-60, b.h - 40, 120, 40);
+  for (let i = -3; i <= 3; i++) { ctx.fillStyle = (Math.floor(t * 3) + i) % 2 ? "#ffe066" : "#ff6a4d"; ctx.fillRect(i * 36 - 6, b.h - 6, 12, 6); }
+  ctx.fillStyle = "#88a"; ctx.fillRect(-4, -34, 8, 34); ctx.fillStyle = Math.sin(t * 6) > 0 ? "#f55" : "#511"; ctx.beginPath(); ctx.arc(0, -36, 6, 0, 6.283); ctx.fill();
+  texto("BASE", 0, 30, 24, "#fff");
+  ctx.restore();
+}
+function dibujarJefe(j) {
+  ctx.save(); ctx.translate(j.x, j.y);
+  const g = j.gran;
+  ctx.fillStyle = g ? "#7a1f3d" : "#5b3a8a";
+  ctx.beginPath(); ctx.moveTo(0, j.r); ctx.lineTo(j.r * 1.2, -j.r * 0.2); ctx.lineTo(j.r * 0.7, -j.r * 0.8); ctx.lineTo(0, -j.r * 0.4); ctx.lineTo(-j.r * 0.7, -j.r * 0.8); ctx.lineTo(-j.r * 1.2, -j.r * 0.2); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "#fff6"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = "#ff4d4d"; ctx.beginPath(); ctx.arc(0, 0, j.r * 0.25, 0, 6.283); ctx.fill();
+  ctx.fillStyle = "#ffe066"; ctx.beginPath(); ctx.arc(0, 0, j.r * 0.1 + Math.sin(t * 8) * 2, 0, 6.283); ctx.fill();
+  ctx.restore();
+  // barra de vida
+  ctx.fillStyle = "#0008"; ctx.fillRect(W / 2 - 150, 52, 300, 12);
+  ctx.fillStyle = "#e74c3c"; ctx.fillRect(W / 2 - 150, 52, 300 * Math.max(0, j.vida / j.max), 12);
+  ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.strokeRect(W / 2 - 150, 52, 300, 12);
+  texto(g ? "COMANDANTE ZORG" : "GUARDIÁN", W / 2, 76, 14, "#ffd0d0");
+}
+function dibujarBonus(o) {
+  const col = o.tipo === "escudo" ? "#4cc9f0" : o.tipo === "doble" ? "#ffd166" : "#ef476f";
+  const letra = o.tipo === "escudo" ? "E" : o.tipo === "doble" ? "x2" : "♥";
+  ctx.fillStyle = col; ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, 6.283); ctx.fill();
+  ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+  texto(letra, o.x, o.y + 1, 13, "#112", "center", false);
+}
+
+function dibujarHUD() {
+  ctx.fillStyle = "#0007"; ctx.fillRect(0, 0, W, 36);
+  texto(`Nivel ${nivel}/${TOTAL_NIVELES}`, 12, 18, 16, "#9bd", "left");
+  texto(`Puntos: ${puntos}`, W / 2, 18, 16, "#fff");
+  texto("♥".repeat(Math.max(0, jugador.vidas)), W - 12, 18, 18, "#ff5c7a", "right");
+  if (jugador.escudo) texto("ESCUDO", W - 110, 18, 12, "#4cc9f0", "right");
+  if (jugador.doble > 0) texto(`DOBLE ${Math.ceil(jugador.doble)}s`, W - 180, 18, 12, "#ffd166", "right");
+  // barra de progreso hacia la base
+  const bx = 12, by = 44, bw = 14, bh = H - 70;
+  ctx.fillStyle = "#0007"; ctx.fillRect(bx, by, bw, bh);
+  ctx.fillStyle = "#3d7bff"; ctx.fillRect(bx, by + bh * (1 - progreso), bw, bh * progreso);
+  ctx.strokeStyle = "#9bd"; ctx.lineWidth = 1; ctx.strokeRect(bx, by, bw, bh);
+  texto("BASE", bx + 7, by - 6 + 0, 9, "#9bd", "center", false);
+  ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.moveTo(bx + 20, by + bh * (1 - progreso)); ctx.lineTo(bx + 30, by + bh * (1 - progreso) - 5); ctx.lineTo(bx + 30, by + bh * (1 - progreso) + 5); ctx.fill();
+}
+
+function panel(titulo, lineas, sub) {
+  ctx.fillStyle = "#050818d0"; ctx.fillRect(0, 0, W, H);
+  texto(titulo, W / 2, 200, 48, "#ffd166");
+  lineas.forEach((l, i) => texto(l, W / 2, 275 + i * 30, 20, "#dfe9ff"));
+  if (sub) texto(sub, W / 2, 275 + lineas.length * 30 + 30, 20 + 0, Math.sin(t * 5) > -0.3 ? "#7CFC9A" : "#4a8");
+}
+
+function dibujar() {
+  ctx.save();
+  if (sacudida > 0) ctx.translate(rnd(-5, 5), rnd(-5, 5));
+  // fondo
+  const fondo = ctx.createLinearGradient(0, 0, 0, H);
+  const tono = (nivel - 1) * 28;
+  fondo.addColorStop(0, `hsl(${230 + tono % 120}, 60%, 6%)`); fondo.addColorStop(1, `hsl(${250 + tono % 100}, 55%, 14%)`);
+  ctx.fillStyle = fondo; ctx.fillRect(-10, -10, W + 20, H + 20);
+  for (const s of estrellas) { ctx.fillStyle = `rgba(255,255,255,${0.3 + s.z * 0.35})`; ctx.fillRect(s.x, s.y, s.z * 1.6, s.z * 1.6); }
+
+  if (estado === "menu") {
+    texto("HALUSKI", W / 2, 130, 72, "#ffd166");
+    texto("Misión a la Base", W / 2, 195, 34, "#9bd");
+    dibujarNave(W / 2, 290 + Math.sin(t * 2) * 8, "#4cc9f0", "#fff", true);
+    ["Dispara a las naves enemigas,", "esquiva los meteoritos", `y llega a la base en ${TOTAL_NIVELES} niveles.`].forEach((l, i) => texto(l, W / 2, 360 + i * 28, 20, "#dfe9ff"));
+    texto("Pulsa ENTER o ESPACIO para empezar", W / 2, 480, 24, Math.sin(t * 5) > -0.3 ? "#7CFC9A" : "#4a8");
+    texto(`Récord: ${record}`, W / 2, 530, 18, "#ffd166");
+    ctx.restore(); return;
+  }
+
+  if (base) dibujarBase(base);
+  for (const m of meteoros) dibujarMeteoro(m);
+  for (const e of enemigos) dibujarEnemigo(e);
+  if (jefe) dibujarJefe(jefe);
+  for (const o of bonus) dibujarBonus(o);
+  ctx.fillStyle = "#7CFC9A";
+  for (const b of balas) { ctx.fillRect(b.x - 2, b.y - 8, 4, 14); }
+  ctx.fillStyle = "#ff6a4d";
+  for (const b of balasEnemigas) { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 6.283); ctx.fill(); ctx.strokeStyle = "#ffd0a0"; ctx.lineWidth = 1.5; ctx.stroke(); }
+  if (jugador.vivo && !(jugador.invul > 0 && Math.floor(t * 14) % 2)) {
+    dibujarNave(jugador.x, jugador.y, "#4cc9f0", "#fff", true);
+    if (jugador.escudo) { ctx.strokeStyle = "#4cc9f0aa"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(jugador.x, jugador.y, 26, 0, 6.283); ctx.stroke(); }
+  }
+  for (const p of particulas) { ctx.globalAlpha = Math.max(0, p.vida / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.tam, p.tam); }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  dibujarHUD();
+
+  if (estado === "intro") {
+    texto(`NIVEL ${nivel}`, W / 2, 230, 56, "#ffd166");
+    texto(cfg.nombre, W / 2, 290, 30, "#fff");
+    texto(cfg.jefe ? "¡Cuidado: un jefe te espera!" : "¡Llega a la base!", W / 2, 335, 20, "#9bd");
+  } else if (estado === "aterrizando" && base.y < 70) {
+    texto("¡La base se acerca!", W / 2, 300, 26, "#7CFC9A");
+  } else if (estado === "aterrizando") {
+    texto("¡Vuela hasta la base!", W / 2, 300, 26, "#7CFC9A");
+  } else if (estado === "pausa") {
+    panel("PAUSA", ["Pulsa P para continuar"], "");
+  } else if (estado === "nivelCompleto") {
+    panel("¡NIVEL SUPERADO!", [`Has llegado a la base.`, `Bonificación: +${ultimoBono} puntos`, `Puntos totales: ${puntos}`],
+      nivel >= TOTAL_NIVELES ? "Pulsa ENTER para continuar" : "Pulsa ENTER para el siguiente nivel");
+  } else if (estado === "derrota") {
+    panel("FIN DEL JUEGO", [`Haluski ha caído en el nivel ${nivel}.`, `Puntos: ${puntos}`, `Récord: ${record}`], "Pulsa ENTER para volver al menú");
+  } else if (estado === "victoria") {
+    panel("¡VICTORIA!", ["Haluski ha derrotado al Comandante Zorg", `y ha completado los ${TOTAL_NIVELES} niveles.`, `Puntos finales: ${puntos}`, `Récord: ${record}`], "Pulsa ENTER para volver al menú");
+  }
+}
+
+// ---------- Bucle ----------
+let ultimo = performance.now();
+function bucle(ahora) {
+  const dt = Math.min(0.05, (ahora - ultimo) / 1000);
+  ultimo = ahora;
+  if (hit("KeyM")) { sonido = !sonido; }
+  actualizar(dt);
+  for (const k in pulsada) delete pulsada[k];
+  dibujar();
+  requestAnimationFrame(bucle);
+}
+// Estado inicial seguro para dibujar antes de empezar
+jugador = nuevoJugador(); cfg = configNivel(1); balas = []; enemigos = []; meteoros = []; balasEnemigas = []; particulas = []; bonus = [];
+requestAnimationFrame(bucle);
+
+// Gancho para pruebas
+window.__haluski = { get estado() { return estado; }, saltarNivel(n) { nivel = n; if (!jugador || !jugador.vivo) jugador = nuevoJugador(); empezarNivel(); estado = "jugando"; } };
+})();
+</script>
+</body>
+</html>
