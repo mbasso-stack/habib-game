@@ -7,14 +7,18 @@
 <style>
   html, body { margin: 0; height: 100%; background: #05060f; color: #dfe9ff; font-family: "Trebuchet MS", Verdana, sans-serif; }
   body { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  canvas { background: #070a1c; border: 2px solid #2b3a7a; border-radius: 6px; max-width: 100vw; max-height: 86vh; box-shadow: 0 0 30px #1b2a7a88; }
-  #ayuda { margin-top: 8px; font-size: 14px; color: #8fa3d9; text-align: center; padding: 0 8px; }
+  canvas { background: #070a1c; border: 2px solid #2b3a7a; border-radius: 6px; max-width: 100vw; max-height: 84vh; box-shadow: 0 0 30px #1b2a7a88; }
+  #ayuda { margin-top: 8px; font-size: 14px; color: #8fa3d9; text-align: center; padding: 0 8px; line-height: 1.7; }
   kbd { background: #1a2350; border: 1px solid #3a4a94; border-radius: 4px; padding: 1px 6px; color: #fff; }
 </style>
 </head>
 <body>
 <canvas id="juego" width="800" height="600"></canvas>
-<div id="ayuda"><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> o <kbd>WASD</kbd> mover · <kbd>Espacio</kbd> disparar · <kbd>P</kbd> pausa · <kbd>M</kbd> sonido</div>
+<div id="ayuda">
+  <b>1 jugador:</b> <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> o <kbd>WASD</kbd> mover · <kbd>Espacio</kbd> disparar<br>
+  <b>2 jugadores:</b> J1 <kbd>WASD</kbd> + <kbd>Espacio</kbd> · J2 <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> + <kbd>Enter</kbd><br>
+  <kbd>P</kbd> pausa · <kbd>M</kbd> sonido
+</div>
 <script>
 (() => {
 "use strict";
@@ -33,12 +37,14 @@ addEventListener("keydown", e => {
   initAudio();
 });
 addEventListener("keyup", e => { teclas[e.code] = false; });
-const hit = c => { const r = !!pulsada[c]; return r; };
-const izq = () => teclas.ArrowLeft || teclas.KeyA;
-const der = () => teclas.ArrowRight || teclas.KeyD;
-const arr = () => teclas.ArrowUp || teclas.KeyW;
-const abj = () => teclas.ArrowDown || teclas.KeyS;
-const disp = () => teclas.Space;
+const hit = c => !!pulsada[c];
+
+const MAPAS = {
+  solo:    { izq: ["KeyA", "ArrowLeft"], der: ["KeyD", "ArrowRight"], arr: ["KeyW", "ArrowUp"], abj: ["KeyS", "ArrowDown"], disp: ["Space"] },
+  wasd:    { izq: ["KeyA"], der: ["KeyD"], arr: ["KeyW"], abj: ["KeyS"], disp: ["Space"] },
+  flechas: { izq: ["ArrowLeft"], der: ["ArrowRight"], arr: ["ArrowUp"], abj: ["ArrowDown"], disp: ["Enter"] },
+};
+const activo = (p, a) => p.mapa[a].some(c => teclas[c]);
 
 // ---------- Sonido ----------
 let actx = null, sonido = true;
@@ -78,14 +84,14 @@ function texto(t, x, y, tam, color = "#fff", align = "center", sombra = true) {
 }
 
 // ---------- Niveles ----------
-// duracion en segundos hasta aparecer la base; el resto escala con el nivel
 function configNivel(n) {
+  const k = numJugadores === 2 ? 0.8 : 1; // con dos naves aparece más enemigo
   return {
     nombre: ["Órbita Terrestre","Cinturón Lunar","Nube de Polvo","Campo de Asteroides","Tormenta Solar",
              "Nebulosa Carmesí","Zona Hostil","Cementerio Estelar","Agujero Negro","La Base Final"][n - 1],
     duracion: 28 + n * 4,
-    spawnEnemigo: Math.max(0.55, 1.6 - n * 0.1),
-    spawnMeteoro: Math.max(0.35, 1.3 - n * 0.09),
+    spawnEnemigo: Math.max(0.55, 1.6 - n * 0.1) * k,
+    spawnMeteoro: Math.max(0.35, 1.3 - n * 0.09) * k,
     velEnemigo: 70 + n * 9,
     velMeteoro: 110 + n * 14,
     probTirador: Math.min(0.75, 0.1 + n * 0.07),
@@ -96,24 +102,51 @@ function configNivel(n) {
 
 // ---------- Estado ----------
 let estado = "menu"; // menu, intro, jugando, pausa, jefe, aterrizando, nivelCompleto, derrota, victoria
-let nivel = 1, cfg, t = 0, progreso = 0, puntos = 0, record = 0;
+let estadoPrevio = "jugando";
+let numJugadores = 1;
+let nivel = 1, cfg, t = 0, progreso = 0, record = 0;
 try { record = +localStorage.getItem("haluski_record") || 0; } catch (e) {}
-let jugador, balas, enemigos, meteoros, balasEnemigas, particulas, bonus, base, jefe;
-let temporizadorIntro = 0, spawnE = 0, spawnM = 0, sacudida = 0;
+let jugadores = [], balas, enemigos, meteoros, balasEnemigas, particulas, bonus, base, jefe;
+let temporizadorIntro = 0, spawnE = 0, spawnM = 0, sacudida = 0, ultimoBono = 0;
 const estrellas = Array.from({ length: 90 }, () => ({ x: rnd(0, W), y: rnd(0, H), z: rnd(0.3, 1.6) }));
 
-function nuevoJugador(vidas = 3) {
-  return { x: W / 2, y: H - 80, r: 16, vel: 300, vidas, escudo: 0, invul: 0, cool: 0, doble: 0, vivo: true };
+const NOMBRES = ["Haluski", "Jugador 2"];
+const COLORES = ["#4cc9f0", "#ff9f43"];
+
+function crearJugadores(n) {
+  return Array.from({ length: n }, (_, i) => ({
+    id: i, nombre: NOMBRES[i], color: COLORES[i],
+    mapa: n === 1 ? MAPAS.solo : (i === 0 ? MAPAS.wasd : MAPAS.flechas),
+    spawnX: n === 1 ? W / 2 : W / 2 + (i === 0 ? -90 : 90),
+    x: 0, y: H - 80, r: 16, vel: 300, vidas: 3, escudo: 0, invul: 0, cool: 0, doble: 0,
+    vivo: true, puntos: 0, aterrizado: false,
+  }));
 }
+const vivos = () => jugadores.filter(p => p.vivo);
+const totalPuntos = () => jugadores.reduce((s, p) => s + p.puntos, 0);
+function sumar(p, n) { if (p) p.puntos += n; else jugadores[0].puntos += n; }
+function guardarRecord() {
+  const total = totalPuntos();
+  if (total > record) { record = total; try { localStorage.setItem("haluski_record", record); } catch (e) {} }
+}
+function objetivo(x, y) {
+  let mejor = null, d = Infinity;
+  for (const p of vivos()) { const dd = Math.hypot(p.x - x, p.y - y); if (dd < d) { d = dd; mejor = p; } }
+  return mejor;
+}
+
 function iniciarJuego() {
-  nivel = 1; puntos = 0; jugador = nuevoJugador(3);
+  nivel = 1; jugadores = crearJugadores(numJugadores);
   empezarNivel();
 }
 function empezarNivel() {
   cfg = configNivel(nivel);
   balas = []; enemigos = []; meteoros = []; balasEnemigas = []; particulas = []; bonus = [];
   base = null; jefe = null; progreso = 0; spawnE = 1; spawnM = 0.5;
-  jugador.x = W / 2; jugador.y = H - 80; jugador.invul = 2; jugador.cool = 0;
+  for (const p of jugadores) {
+    if (!p.vivo) { p.vivo = true; p.vidas = 1; } // los caídos vuelven con 1 vida
+    p.x = p.spawnX; p.y = H - 80; p.invul = 2; p.cool = 0; p.aterrizado = false;
+  }
   temporizadorIntro = 2.6; estado = "intro";
 }
 
@@ -134,23 +167,24 @@ function crearEnemigo() {
   const e = { tipo, x: rnd(40, W - 40), y: -30, r: 18, vida: 1, base: 0, fase: rnd(0, 6.28), cool: rnd(0.8, 2) };
   e.base = e.x;
   if (tipo === "tirador") { e.vida = 2 + (nivel > 6 ? 1 : 0); e.r = 20; }
-  if (tipo === "zigzag") e.vida = 1;
   enemigos.push(e);
 }
 function crearMeteoro() {
   const r = rnd(16, 34);
   meteoros.push({ x: rnd(r, W - r), y: -r, r, vx: rnd(-40, 40), vy: cfg.velMeteoro * rnd(0.8, 1.3), rot: rnd(0, 6), vrot: rnd(-2, 2),
-    forma: Array.from({ length: 9 }, (_, i) => rnd(0.75, 1.1)) });
+    forma: Array.from({ length: 9 }, () => rnd(0.75, 1.1)) });
 }
 function crearJefe() {
   const gran = nivel === 10;
-  jefe = { x: W / 2, y: -80, r: gran ? 55 : 42, vida: gran ? 60 : 25, max: gran ? 60 : 25, dir: 1, cool: 1.5, fase: 0, entrando: true, gran };
+  const vida = Math.round((gran ? 60 : 25) * (numJugadores === 2 ? 1.6 : 1));
+  jefe = { x: W / 2, y: -80, r: gran ? 55 : 42, vida, max: vida, dir: 1, cool: 1.5, fase: 0, entrando: true, gran };
   estado = "jefe";
 }
 function soltarBonus(x, y) {
   if (Math.random() > 0.17) return;
-  const tipos = ["escudo", "doble", "vida"];
-  bonus.push({ x, y, r: 13, tipo: tipos[rint(0, jugador.vidas >= 5 ? 1 : 2)] });
+  const todosLlenos = vivos().every(p => p.vidas >= 5) && vivos().length === jugadores.length;
+  const tipos = todosLlenos ? ["escudo", "doble"] : ["escudo", "doble", "vida"];
+  bonus.push({ x, y, r: 13, tipo: tipos[rint(0, tipos.length - 1)] });
 }
 function dispararEnemigo(x, y, tx, ty, vel = 220) {
   const a = Math.atan2(ty - y, tx - x);
@@ -158,32 +192,37 @@ function dispararEnemigo(x, y, tx, ty, vel = 220) {
 }
 
 // ---------- Daño ----------
-function dañarJugador() {
-  if (jugador.invul > 0 || !jugador.vivo) return;
-  if (jugador.escudo > 0) { jugador.escudo = 0; jugador.invul = 1; sfx.golpe(); explosion(jugador.x, jugador.y, 10, "#6cf"); return; }
-  jugador.vidas--; sacudida = 0.4; sfx.golpe();
-  explosion(jugador.x, jugador.y, 24, "#ff6a4d");
-  jugador.doble = 0;
-  if (jugador.vidas <= 0) {
-    jugador.vivo = false; estado = "derrota"; sfx.derrota();
-    if (puntos > record) { record = puntos; try { localStorage.setItem("haluski_record", record); } catch (e) {} }
-  } else { jugador.invul = 2.2; jugador.x = W / 2; jugador.y = H - 80; }
+function dañarJugador(p) {
+  if (p.invul > 0 || !p.vivo || p.aterrizado) return;
+  if (p.escudo > 0) { p.escudo = 0; p.invul = 1; sfx.golpe(); explosion(p.x, p.y, 10, "#6cf"); return; }
+  p.vidas--; sacudida = 0.4; sfx.golpe();
+  explosion(p.x, p.y, 24, "#ff6a4d");
+  p.doble = 0;
+  if (p.vidas <= 0) {
+    p.vivo = false;
+    if (!vivos().length) { estado = "derrota"; sfx.derrota(); guardarRecord(); }
+  } else { p.invul = 2.2; p.x = p.spawnX; p.y = H - 80; }
 }
 
 // ---------- Actualización ----------
 function actualizar(dt) {
   t += dt;
-  for (const s of estrellas) { s.y += s.z * 60 * dt * (estado === "jugando" || estado === "jefe" ? 1.5 : 1); if (s.y > H) { s.y = 0; s.x = rnd(0, W); } }
+  const enAccion = estado === "jugando" || estado === "jefe";
+  for (const s of estrellas) { s.y += s.z * 60 * dt * (enAccion ? 1.5 : 1); if (s.y > H) { s.y = 0; s.x = rnd(0, W); } }
   if (sacudida > 0) sacudida -= dt;
 
-  if (estado === "menu") { if (hit("Enter") || hit("Space")) iniciarJuego(); return; }
-  if (estado === "derrota") { if (hit("Enter")) estado = "menu"; return; }
-  if (estado === "victoria") { if (hit("Enter")) estado = "menu"; return; }
+  if (estado === "menu") {
+    if (hit("Digit1") || hit("Numpad1") || hit("ArrowLeft")) numJugadores = 1;
+    if (hit("Digit2") || hit("Numpad2") || hit("ArrowRight")) numJugadores = 2;
+    if (hit("Enter") || hit("Space")) iniciarJuego();
+    return;
+  }
+  if (estado === "derrota" || estado === "victoria") { if (hit("Enter")) estado = "menu"; return; }
   if (estado === "pausa") { if (hit("KeyP")) estado = estadoPrevio; return; }
   if (estado === "nivelCompleto") {
     temporizadorIntro -= dt;
     if (temporizadorIntro <= 0 || hit("Enter")) {
-      if (nivel >= TOTAL_NIVELES) { estado = "victoria"; if (puntos > record) { record = puntos; try { localStorage.setItem("haluski_record", record); } catch (e) {} } }
+      if (nivel >= TOTAL_NIVELES) { estado = "victoria"; guardarRecord(); }
       else { nivel++; empezarNivel(); }
     }
     return;
@@ -191,24 +230,25 @@ function actualizar(dt) {
   if (estado === "intro") {
     temporizadorIntro -= dt;
     if (temporizadorIntro <= 0) estado = "jugando";
-    moverJugador(dt); actualizarParticulas(dt);
+    for (const p of jugadores) moverJugador(p, dt);
+    actualizarParticulas(dt);
     return;
   }
   if (hit("KeyP")) { estadoPrevio = estado; estado = "pausa"; return; }
 
-  moverJugador(dt);
-
-  // Disparo
-  jugador.cool -= dt;
-  if (disp() && jugador.cool <= 0 && jugador.vivo && estado !== "aterrizando") {
-    jugador.cool = 0.2;
-    if (jugador.doble > 0) {
-      balas.push({ x: jugador.x - 10, y: jugador.y - 14, r: 3 }, { x: jugador.x + 10, y: jugador.y - 14, r: 3 });
-    } else balas.push({ x: jugador.x, y: jugador.y - 18, r: 3 });
-    sfx.disparo();
+  for (const p of jugadores) {
+    moverJugador(p, dt);
+    // Disparo
+    p.cool -= dt;
+    if (p.vivo && !p.aterrizado && estado !== "aterrizando" && activo(p, "disp") && p.cool <= 0) {
+      p.cool = 0.2;
+      if (p.doble > 0) balas.push({ x: p.x - 10, y: p.y - 14, r: 3, dueño: p }, { x: p.x + 10, y: p.y - 14, r: 3, dueño: p });
+      else balas.push({ x: p.x, y: p.y - 18, r: 3, dueño: p });
+      sfx.disparo();
+    }
+    if (p.doble > 0) p.doble -= dt;
+    if (p.invul > 0) p.invul -= dt;
   }
-  if (jugador.doble > 0) jugador.doble -= dt;
-  if (jugador.invul > 0) jugador.invul -= dt;
 
   // Avance del nivel
   if (estado === "jugando") {
@@ -226,9 +266,11 @@ function actualizar(dt) {
     base.y = Math.min(70, base.y + 90 * dt);
     spawnM -= dt;
     if (spawnM <= 0 && base.y < 40) { crearMeteoro(); spawnM = 1.2; }
-    // La base debe alcanzarse volando hasta ella
-    if (base.y >= 70 && jugador.vivo && Math.abs(jugador.x - base.x) < base.w / 2 && jugador.y < base.y + base.h + 20) {
-      completarNivel();
+    if (base.y >= 70) {
+      for (const p of vivos()) {
+        if (!p.aterrizado && Math.abs(p.x - base.x) < base.w / 2 && p.y < base.y + base.h + 20) { p.aterrizado = true; sfx.bonus(); }
+      }
+      if (vivos().length && vivos().every(p => p.aterrizado)) completarNivel();
     }
   }
 
@@ -245,52 +287,54 @@ function actualizar(dt) {
     else {
       e.x = e.base + Math.sin(e.fase * 0.5) * 40;
       e.cool -= dt;
-      if (e.cool <= 0 && e.y > 0 && e.y < H - 200 && jugador.vivo) { dispararEnemigo(e.x, e.y + 14, jugador.x, jugador.y, 200 + nivel * 8); e.cool = rnd(1.4, 2.4) - nivel * 0.05; }
+      const obj = objetivo(e.x, e.y);
+      if (e.cool <= 0 && e.y > 0 && e.y < H - 200 && obj) { dispararEnemigo(e.x, e.y + 14, obj.x, obj.y, 200 + nivel * 8); e.cool = rnd(1.4, 2.4) - nivel * 0.05; }
     }
-    if (jugador.vivo && choque(e, jugador)) { e.vida = 0; explosion(e.x, e.y); sfx.explosion(); dañarJugador(); }
+    for (const p of vivos()) if (e.vida > 0 && choque(e, p) && !p.aterrizado) { e.vida = 0; explosion(e.x, e.y); sfx.explosion(); dañarJugador(p); }
   }
   // Meteoros
   for (const m of meteoros) {
     m.x += m.vx * dt; m.y += m.vy * dt; m.rot += m.vrot * dt;
     if (m.x < m.r || m.x > W - m.r) m.vx *= -1;
-    if (jugador.vivo && choque({ x: m.x, y: m.y, r: m.r * 0.85 }, jugador)) { m.muerto = true; explosion(m.x, m.y, 14, "#b9a28a"); dañarJugador(); }
+    for (const p of vivos()) if (!m.muerto && !p.aterrizado && choque({ x: m.x, y: m.y, r: m.r * 0.85 }, p)) { m.muerto = true; explosion(m.x, m.y, 14, "#b9a28a"); dañarJugador(p); }
   }
   // Balas enemigas
   for (const b of balasEnemigas) {
     b.x += b.vx * dt; b.y += b.vy * dt;
-    if (jugador.vivo && choque(b, jugador)) { b.muerta = true; dañarJugador(); }
+    for (const p of vivos()) if (!b.muerta && !p.aterrizado && choque(b, p)) { b.muerta = true; dañarJugador(p); }
   }
-  // Jefe
   if (jefe) actualizarJefe(dt);
 
   // Colisiones: balas del jugador
   for (const b of balas) {
     for (const e of enemigos) if (!b.muerta && e.vida > 0 && choque(b, e)) {
       b.muerta = true; e.vida--;
-      if (e.vida <= 0) { puntos += e.tipo === "tirador" ? 200 : 100; explosion(e.x, e.y, 18); sfx.explosion(); soltarBonus(e.x, e.y); }
+      if (e.vida <= 0) { sumar(b.dueño, e.tipo === "tirador" ? 200 : 100); explosion(e.x, e.y, 18); sfx.explosion(); soltarBonus(e.x, e.y); }
       else explosion(b.x, b.y, 4, "#fff", 80);
     }
     for (const m of meteoros) if (!b.muerta && !m.muerto && choque(b, { x: m.x, y: m.y, r: m.r })) {
       b.muerta = true; explosion(b.x, b.y, 3, "#cdb", 60);
-      if (m.r > 24) { m.r *= 0.9; } // los grandes aguantan
-      if (m.r <= 24) { /* pequeños se destruyen */ }
+      if (m.r > 24) m.r *= 0.9; // los grandes aguantan varios disparos
+      else { m.muerto = true; sumar(b.dueño, 30); explosion(m.x, m.y, 12, "#b9a28a"); sfx.explosion(); }
     }
     if (jefe && !b.muerta && !jefe.entrando && choque(b, jefe)) {
-      b.muerta = true; jefe.vida--; puntos += 10; explosion(b.x, b.y, 4, "#fff", 90);
-      if (jefe.vida <= 0) jefeDerrotado();
+      b.muerta = true; jefe.vida--; sumar(b.dueño, 10); explosion(b.x, b.y, 4, "#fff", 90);
+      if (jefe.vida <= 0) { jefeDerrotado(b.dueño); break; }
     }
   }
-  // Los meteoros pequeños sí se destruyen con disparos
-  for (const b of balas) for (const m of meteoros) if (!m.muerto && m.r <= 24 && choque(b, { x: m.x, y: m.y, r: m.r })) { m.muerto = true; puntos += 30; explosion(m.x, m.y, 12, "#b9a28a"); sfx.explosion(); b.muerta = true; }
 
   // Bonus
   for (const o of bonus) {
     o.y += 90 * dt;
-    if (jugador.vivo && choque(o, jugador)) {
-      o.cogido = true; sfx.bonus(); puntos += 50;
-      if (o.tipo === "escudo") jugador.escudo = 1;
-      else if (o.tipo === "doble") jugador.doble = 12;
-      else jugador.vidas = Math.min(5, jugador.vidas + 1);
+    for (const p of vivos()) if (!o.cogido && choque(o, p)) {
+      o.cogido = true; sfx.bonus(); p.puntos += 50;
+      if (o.tipo === "escudo") p.escudo = 1;
+      else if (o.tipo === "doble") p.doble = 12;
+      else {
+        const caido = jugadores.find(q => !q.vivo);
+        if (caido) { caido.vivo = true; caido.vidas = 1; caido.invul = 2.5; caido.x = caido.spawnX; caido.y = H - 80; } // revive al compañero
+        else p.vidas = Math.min(5, p.vidas + 1);
+      }
     }
   }
 
@@ -301,15 +345,14 @@ function actualizar(dt) {
   bonus = bonus.filter(o => !o.cogido && o.y < H + 20);
   actualizarParticulas(dt);
 }
-let estadoPrevio = "jugando";
 
-function moverJugador(dt) {
-  if (!jugador.vivo) return;
-  let dx = (der() ? 1 : 0) - (izq() ? 1 : 0), dy = (abj() ? 1 : 0) - (arr() ? 1 : 0);
+function moverJugador(p, dt) {
+  if (!p.vivo || p.aterrizado) return;
+  let dx = (activo(p, "der") ? 1 : 0) - (activo(p, "izq") ? 1 : 0), dy = (activo(p, "abj") ? 1 : 0) - (activo(p, "arr") ? 1 : 0);
   if (dx && dy) { dx *= 0.7071; dy *= 0.7071; }
-  jugador.x = Math.max(45, Math.min(W - 20, jugador.x + dx * jugador.vel * dt));
+  p.x = Math.max(45, Math.min(W - 20, p.x + dx * p.vel * dt));
   const minY = estado === "aterrizando" ? 20 : 120;
-  jugador.y = Math.max(minY, Math.min(H - 30, jugador.y + dy * jugador.vel * dt));
+  p.y = Math.max(minY, Math.min(H - 30, p.y + dy * p.vel * dt));
 }
 function actualizarParticulas(dt) {
   for (const p of particulas) { p.x += p.vx * dt; p.y += p.vy * dt; p.vida -= dt; }
@@ -320,41 +363,39 @@ function actualizarJefe(dt) {
   if (j.entrando) { j.y += 60 * dt; if (j.y >= 110) j.entrando = false; return; }
   j.fase += dt;
   j.x += j.dir * (j.gran ? 130 : 100) * dt;
-  if (j.x > W - 80) j.dir = -1; if (j.x < 80) j.dir = 1;
+  if (j.x > W - 80) j.dir = -1;
+  if (j.x < 80) j.dir = 1;
   j.cool -= dt;
-  if (j.cool <= 0 && jugador.vivo) {
+  const obj = objetivo(j.x, j.y);
+  if (j.cool <= 0 && obj) {
     j.cool = j.gran ? 0.9 : 1.3;
     const n = j.gran ? 5 : 3;
     for (let i = 0; i < n; i++) {
       const a = Math.PI / 2 + (i - (n - 1) / 2) * 0.28;
       balasEnemigas.push({ x: j.x, y: j.y + j.r * 0.6, vx: Math.cos(a) * 230, vy: Math.sin(a) * 230, r: 6 });
     }
-    if (j.gran && Math.random() < 0.4) dispararEnemigo(j.x, j.y, jugador.x, jugador.y, 280);
+    if (j.gran && Math.random() < 0.4) dispararEnemigo(j.x, j.y, obj.x, obj.y, 280);
   }
-  if (jugador.vivo && choque(j, jugador)) dañarJugador();
+  for (const p of vivos()) if (choque(j, p)) dañarJugador(p);
 }
-function jefeDerrotado() {
-  puntos += jefe.gran ? 3000 : 1000;
+function jefeDerrotado(dueño) {
+  sumar(dueño, jefe.gran ? 3000 : 1000);
   for (let i = 0; i < 6; i++) explosion(jefe.x + rnd(-40, 40), jefe.y + rnd(-30, 30), 30, i % 2 ? "#ffb347" : "#ff6a4d", 260);
   sfx.explosion(); balasEnemigas = [];
   jefe = null; base = { x: W / 2, y: -120, w: 260, h: 90 }; estado = "aterrizando";
 }
 function completarNivel() {
-  const bono = 500 + Math.max(0, jugador.vidas) * 100;
-  puntos += bono; sfx.nivel();
+  ultimoBono = 0;
+  for (const p of vivos()) { const b = 500 + p.vidas * 100; p.puntos += b; ultimoBono += b; }
+  sfx.nivel();
   estado = "nivelCompleto"; temporizadorIntro = 4;
-  ultimoBono = bono;
 }
-let ultimoBono = 0;
 
 // ---------- Dibujo ----------
-function dibujarNave(x, y, color, acento, esJugador) {
+function dibujarNave(x, y, color, acento) {
   ctx.save(); ctx.translate(x, y);
-  if (esJugador) {
-    // llama
-    ctx.fillStyle = `rgba(255,${150 + Math.sin(t * 40) * 60 | 0},50,.9)`;
-    ctx.beginPath(); ctx.moveTo(-6, 14); ctx.lineTo(0, 26 + Math.sin(t * 50) * 4); ctx.lineTo(6, 14); ctx.fill();
-  }
+  ctx.fillStyle = `rgba(255,${150 + Math.sin(t * 40) * 60 | 0},50,.9)`;
+  ctx.beginPath(); ctx.moveTo(-6, 14); ctx.lineTo(0, 26 + Math.sin(t * 50) * 4); ctx.lineTo(6, 14); ctx.fill();
   ctx.fillStyle = color;
   ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(16, 14); ctx.lineTo(7, 9); ctx.lineTo(0, 15); ctx.lineTo(-7, 9); ctx.lineTo(-16, 14); ctx.closePath(); ctx.fill();
   ctx.fillStyle = acento;
@@ -393,18 +434,16 @@ function dibujarBase(b) {
 }
 function dibujarJefe(j) {
   ctx.save(); ctx.translate(j.x, j.y);
-  const g = j.gran;
-  ctx.fillStyle = g ? "#7a1f3d" : "#5b3a8a";
+  ctx.fillStyle = j.gran ? "#7a1f3d" : "#5b3a8a";
   ctx.beginPath(); ctx.moveTo(0, j.r); ctx.lineTo(j.r * 1.2, -j.r * 0.2); ctx.lineTo(j.r * 0.7, -j.r * 0.8); ctx.lineTo(0, -j.r * 0.4); ctx.lineTo(-j.r * 0.7, -j.r * 0.8); ctx.lineTo(-j.r * 1.2, -j.r * 0.2); ctx.closePath(); ctx.fill();
   ctx.strokeStyle = "#fff6"; ctx.lineWidth = 2; ctx.stroke();
   ctx.fillStyle = "#ff4d4d"; ctx.beginPath(); ctx.arc(0, 0, j.r * 0.25, 0, 6.283); ctx.fill();
   ctx.fillStyle = "#ffe066"; ctx.beginPath(); ctx.arc(0, 0, j.r * 0.1 + Math.sin(t * 8) * 2, 0, 6.283); ctx.fill();
   ctx.restore();
-  // barra de vida
   ctx.fillStyle = "#0008"; ctx.fillRect(W / 2 - 150, 52, 300, 12);
   ctx.fillStyle = "#e74c3c"; ctx.fillRect(W / 2 - 150, 52, 300 * Math.max(0, j.vida / j.max), 12);
   ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.strokeRect(W / 2 - 150, 52, 300, 12);
-  texto(g ? "COMANDANTE ZORG" : "GUARDIÁN", W / 2, 76, 14, "#ffd0d0");
+  texto(j.gran ? "COMANDANTE ZORG" : "GUARDIÁN", W / 2, 76, 14, "#ffd0d0");
 }
 function dibujarBonus(o) {
   const col = o.tipo === "escudo" ? "#4cc9f0" : o.tipo === "doble" ? "#ffd166" : "#ef476f";
@@ -414,48 +453,70 @@ function dibujarBonus(o) {
   texto(letra, o.x, o.y + 1, 13, "#112", "center", false);
 }
 
+function bloqueJugador(p, x, align) {
+  const vidas = p.vivo ? "♥".repeat(Math.max(0, p.vidas)) : "FUERA";
+  texto(`${p.nombre}  ${vidas}`, x, 11, 13, p.vivo ? p.color : "#889", align);
+  let extra = `${p.puntos} pts`;
+  if (p.escudo) extra += " · ESCUDO";
+  if (p.doble > 0) extra += ` · x2 ${Math.ceil(p.doble)}s`;
+  texto(extra, x, 27, 12, "#dfe9ff", align);
+}
 function dibujarHUD() {
-  ctx.fillStyle = "#0007"; ctx.fillRect(0, 0, W, 36);
-  texto(`Nivel ${nivel}/${TOTAL_NIVELES}`, 12, 18, 16, "#9bd", "left");
-  texto(`Puntos: ${puntos}`, W / 2, 18, 16, "#fff");
-  texto("♥".repeat(Math.max(0, jugador.vidas)), W - 12, 18, 18, "#ff5c7a", "right");
-  if (jugador.escudo) texto("ESCUDO", W - 110, 18, 12, "#4cc9f0", "right");
-  if (jugador.doble > 0) texto(`DOBLE ${Math.ceil(jugador.doble)}s`, W - 180, 18, 12, "#ffd166", "right");
+  ctx.fillStyle = "#0007"; ctx.fillRect(0, 0, W, 38);
+  texto(`Nivel ${nivel}/${TOTAL_NIVELES}`, W / 2, 11, 14, "#9bd");
+  texto(`Total: ${totalPuntos()}`, W / 2, 27, 12, "#fff");
+  bloqueJugador(jugadores[0], 12, "left");
+  if (jugadores[1]) bloqueJugador(jugadores[1], W - 12, "right");
   // barra de progreso hacia la base
-  const bx = 12, by = 44, bw = 14, bh = H - 70;
+  const bx = 12, by = 48, bw = 14, bh = H - 74;
   ctx.fillStyle = "#0007"; ctx.fillRect(bx, by, bw, bh);
   ctx.fillStyle = "#3d7bff"; ctx.fillRect(bx, by + bh * (1 - progreso), bw, bh * progreso);
   ctx.strokeStyle = "#9bd"; ctx.lineWidth = 1; ctx.strokeRect(bx, by, bw, bh);
-  texto("BASE", bx + 7, by - 6 + 0, 9, "#9bd", "center", false);
-  ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.moveTo(bx + 20, by + bh * (1 - progreso)); ctx.lineTo(bx + 30, by + bh * (1 - progreso) - 5); ctx.lineTo(bx + 30, by + bh * (1 - progreso) + 5); ctx.fill();
+  texto("BASE", bx + 7, by - 6, 9, "#9bd", "center", false);
+  const py = by + bh * (1 - progreso);
+  ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.moveTo(bx + 20, py); ctx.lineTo(bx + 30, py - 5); ctx.lineTo(bx + 30, py + 5); ctx.fill();
 }
 
 function panel(titulo, lineas, sub) {
   ctx.fillStyle = "#050818d0"; ctx.fillRect(0, 0, W, H);
-  texto(titulo, W / 2, 200, 48, "#ffd166");
-  lineas.forEach((l, i) => texto(l, W / 2, 275 + i * 30, 20, "#dfe9ff"));
-  if (sub) texto(sub, W / 2, 275 + lineas.length * 30 + 30, 20 + 0, Math.sin(t * 5) > -0.3 ? "#7CFC9A" : "#4a8");
+  texto(titulo, W / 2, 190, 48, "#ffd166");
+  lineas.forEach((l, i) => texto(l, W / 2, 265 + i * 30, 20, "#dfe9ff"));
+  if (sub) texto(sub, W / 2, 265 + lineas.length * 30 + 30, 20, Math.sin(t * 5) > -0.3 ? "#7CFC9A" : "#4a8");
+}
+function lineasPuntos() {
+  if (jugadores.length === 1) return [];
+  return jugadores.map(p => `${p.nombre}: ${p.puntos} puntos`);
+}
+
+function dibujarMenu() {
+  texto("HALUSKI", W / 2, 110, 72, "#ffd166");
+  texto("Misión a la Base", W / 2, 170, 34, "#9bd");
+  const y = 250 + Math.sin(t * 2) * 6;
+  if (numJugadores === 1) dibujarNave(W / 2, y, COLORES[0], "#fff");
+  else { dibujarNave(W / 2 - 40, y, COLORES[0], "#fff"); dibujarNave(W / 2 + 40, y, COLORES[1], "#fff"); }
+  ["Dispara a las naves enemigas,", "esquiva los meteoritos", `y llega a la base en ${TOTAL_NIVELES} niveles.`].forEach((l, i) => texto(l, W / 2, 330 + i * 26, 19, "#dfe9ff"));
+  // selector de jugadores
+  [1, 2].forEach(n => {
+    const x = W / 2 + (n === 1 ? -120 : 120), sel = numJugadores === n;
+    ctx.fillStyle = sel ? "#2b4bb0" : "#151c40"; ctx.fillRect(x - 100, 428, 200, 44);
+    ctx.strokeStyle = sel ? "#ffd166" : "#3a4a94"; ctx.lineWidth = sel ? 3 : 1; ctx.strokeRect(x - 100, 428, 200, 44);
+    texto(`${n} jugador${n === 2 ? "es (cooperativo)" : ""}`, x, 450, n === 2 ? 14 : 18, sel ? "#fff" : "#8fa3d9", "center", false);
+  });
+  texto("Pulsa 1 o 2 (o ← →) para elegir", W / 2, 495, 15, "#8fa3d9");
+  texto("ENTER o ESPACIO para empezar", W / 2, 530, 22, Math.sin(t * 5) > -0.3 ? "#7CFC9A" : "#4a8");
+  texto(`Récord: ${record}`, W / 2, 568, 16, "#ffd166");
 }
 
 function dibujar() {
   ctx.save();
   if (sacudida > 0) ctx.translate(rnd(-5, 5), rnd(-5, 5));
-  // fondo
   const fondo = ctx.createLinearGradient(0, 0, 0, H);
   const tono = (nivel - 1) * 28;
   fondo.addColorStop(0, `hsl(${230 + tono % 120}, 60%, 6%)`); fondo.addColorStop(1, `hsl(${250 + tono % 100}, 55%, 14%)`);
   ctx.fillStyle = fondo; ctx.fillRect(-10, -10, W + 20, H + 20);
   for (const s of estrellas) { ctx.fillStyle = `rgba(255,255,255,${0.3 + s.z * 0.35})`; ctx.fillRect(s.x, s.y, s.z * 1.6, s.z * 1.6); }
 
-  if (estado === "menu") {
-    texto("HALUSKI", W / 2, 130, 72, "#ffd166");
-    texto("Misión a la Base", W / 2, 195, 34, "#9bd");
-    dibujarNave(W / 2, 290 + Math.sin(t * 2) * 8, "#4cc9f0", "#fff", true);
-    ["Dispara a las naves enemigas,", "esquiva los meteoritos", `y llega a la base en ${TOTAL_NIVELES} niveles.`].forEach((l, i) => texto(l, W / 2, 360 + i * 28, 20, "#dfe9ff"));
-    texto("Pulsa ENTER o ESPACIO para empezar", W / 2, 480, 24, Math.sin(t * 5) > -0.3 ? "#7CFC9A" : "#4a8");
-    texto(`Récord: ${record}`, W / 2, 530, 18, "#ffd166");
-    ctx.restore(); return;
-  }
+  if (estado === "menu") { dibujarMenu(); ctx.restore(); return; }
 
   if (base) dibujarBase(base);
   for (const m of meteoros) dibujarMeteoro(m);
@@ -463,12 +524,14 @@ function dibujar() {
   if (jefe) dibujarJefe(jefe);
   for (const o of bonus) dibujarBonus(o);
   ctx.fillStyle = "#7CFC9A";
-  for (const b of balas) { ctx.fillRect(b.x - 2, b.y - 8, 4, 14); }
+  for (const b of balas) { ctx.fillStyle = b.dueño ? b.dueño.color : "#7CFC9A"; ctx.fillRect(b.x - 2, b.y - 8, 4, 14); }
   ctx.fillStyle = "#ff6a4d";
   for (const b of balasEnemigas) { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 6.283); ctx.fill(); ctx.strokeStyle = "#ffd0a0"; ctx.lineWidth = 1.5; ctx.stroke(); }
-  if (jugador.vivo && !(jugador.invul > 0 && Math.floor(t * 14) % 2)) {
-    dibujarNave(jugador.x, jugador.y, "#4cc9f0", "#fff", true);
-    if (jugador.escudo) { ctx.strokeStyle = "#4cc9f0aa"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(jugador.x, jugador.y, 26, 0, 6.283); ctx.stroke(); }
+  for (const p of jugadores) {
+    if (!p.vivo || (p.invul > 0 && Math.floor(t * 14) % 2)) continue;
+    dibujarNave(p.x, p.y, p.color, "#fff");
+    if (jugadores.length > 1) texto(`J${p.id + 1}`, p.x, p.y - 30, 11, p.color, "center", false);
+    if (p.escudo) { ctx.strokeStyle = p.color + "aa"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p.x, p.y, 26, 0, 6.283); ctx.stroke(); }
   }
   for (const p of particulas) { ctx.globalAlpha = Math.max(0, p.vida / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.tam, p.tam); }
   ctx.globalAlpha = 1;
@@ -479,20 +542,19 @@ function dibujar() {
   if (estado === "intro") {
     texto(`NIVEL ${nivel}`, W / 2, 230, 56, "#ffd166");
     texto(cfg.nombre, W / 2, 290, 30, "#fff");
-    texto(cfg.jefe ? "¡Cuidado: un jefe te espera!" : "¡Llega a la base!", W / 2, 335, 20, "#9bd");
-  } else if (estado === "aterrizando" && base.y < 70) {
-    texto("¡La base se acerca!", W / 2, 300, 26, "#7CFC9A");
+    texto(cfg.jefe ? "¡Cuidado: un jefe te espera!" : "¡Llegad a la base!".replace("Llegad", numJugadores === 2 ? "Llegad" : "Llega"), W / 2, 335, 20, "#9bd");
   } else if (estado === "aterrizando") {
-    texto("¡Vuela hasta la base!", W / 2, 300, 26, "#7CFC9A");
+    texto(base.y < 70 ? "¡La base se acerca!" : (numJugadores === 2 ? "¡Volad hasta la base los dos!" : "¡Vuela hasta la base!"), W / 2, 300, 26, "#7CFC9A");
   } else if (estado === "pausa") {
     panel("PAUSA", ["Pulsa P para continuar"], "");
   } else if (estado === "nivelCompleto") {
-    panel("¡NIVEL SUPERADO!", [`Has llegado a la base.`, `Bonificación: +${ultimoBono} puntos`, `Puntos totales: ${puntos}`],
-      nivel >= TOTAL_NIVELES ? "Pulsa ENTER para continuar" : "Pulsa ENTER para el siguiente nivel");
+    const lineas = [numJugadores === 2 ? "Habéis llegado a la base." : "Has llegado a la base.", `Bonificación: +${ultimoBono} puntos`, ...lineasPuntos(), `Puntos totales: ${totalPuntos()}`];
+    if (jugadores.some(p => !p.vivo)) lineas.push("Los compañeros caídos vuelven con 1 vida.");
+    panel("¡NIVEL SUPERADO!", lineas, nivel >= TOTAL_NIVELES ? "Pulsa ENTER para continuar" : "Pulsa ENTER para el siguiente nivel");
   } else if (estado === "derrota") {
-    panel("FIN DEL JUEGO", [`Haluski ha caído en el nivel ${nivel}.`, `Puntos: ${puntos}`, `Récord: ${record}`], "Pulsa ENTER para volver al menú");
+    panel("FIN DEL JUEGO", [numJugadores === 2 ? `Vuestra misión ha terminado en el nivel ${nivel}.` : `Haluski ha caído en el nivel ${nivel}.`, ...lineasPuntos(), `Puntos totales: ${totalPuntos()}`, `Récord: ${record}`], "Pulsa ENTER para volver al menú");
   } else if (estado === "victoria") {
-    panel("¡VICTORIA!", ["Haluski ha derrotado al Comandante Zorg", `y ha completado los ${TOTAL_NIVELES} niveles.`, `Puntos finales: ${puntos}`, `Récord: ${record}`], "Pulsa ENTER para volver al menú");
+    panel("¡VICTORIA!", [numJugadores === 2 ? "Habéis derrotado al Comandante Zorg" : "Haluski ha derrotado al Comandante Zorg", `y completado los ${TOTAL_NIVELES} niveles.`, ...lineasPuntos(), `Puntos finales: ${totalPuntos()}`, `Récord: ${record}`], "Pulsa ENTER para volver al menú");
   }
 }
 
@@ -501,18 +563,22 @@ let ultimo = performance.now();
 function bucle(ahora) {
   const dt = Math.min(0.05, (ahora - ultimo) / 1000);
   ultimo = ahora;
-  if (hit("KeyM")) { sonido = !sonido; }
+  if (hit("KeyM")) sonido = !sonido;
   actualizar(dt);
   for (const k in pulsada) delete pulsada[k];
   dibujar();
   requestAnimationFrame(bucle);
 }
-// Estado inicial seguro para dibujar antes de empezar
-jugador = nuevoJugador(); cfg = configNivel(1); balas = []; enemigos = []; meteoros = []; balasEnemigas = []; particulas = []; bonus = [];
+jugadores = crearJugadores(1); cfg = configNivel(1);
+balas = []; enemigos = []; meteoros = []; balasEnemigas = []; particulas = []; bonus = [];
 requestAnimationFrame(bucle);
 
 // Gancho para pruebas
-window.__haluski = { get estado() { return estado; }, saltarNivel(n) { nivel = n; if (!jugador || !jugador.vivo) jugador = nuevoJugador(); empezarNivel(); estado = "jugando"; } };
+window.__haluski = {
+  get estado() { return estado; },
+  get jugadores() { return jugadores; },
+  iniciar(n, nv = 1) { numJugadores = n; nivel = nv; jugadores = crearJugadores(n); empezarNivel(); estado = "jugando"; },
+};
 })();
 </script>
 </body>
