@@ -178,7 +178,7 @@ function prepararJugador() {
 // ---------- Interacciones ----------
 const ZONAS = () => [
   ...fijos.map(f => ({ x: f.x, z: f.z, r: 3.2, zona: f.zona, texto: f.texto })),
-  { x: TI.x, z: TI.z + 1.5, r: 4, zona: "tienda", texto: "Tienda del robot" },
+  { x: TI.x, z: TI.z - 3.5, r: 4.5, zona: "tienda", texto: "Tienda del robot" }, // delante del mostrador
   { x: HANG.x, z: HANG.z, r: 9, zona: "hangar", texto: "Ver tu nave en el hangar" },
   { x: PAD.x, z: PAD.z, r: 7.5, zona: "despegar", texto: "Despegar" },
 ];
