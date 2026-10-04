@@ -53,7 +53,7 @@ function prepararNave() {
   const i = HG.P.naveActiva, d = HG.P.naves[i];
   N.g = HG.modeloNave(i, { nivel: d.asp, color: d.color }); N.g.rotation.order = "YXZ"; escena.add(N.g);
   const s = stats(); N.hpMax = s.vidaMax;
-  N.hp = HG.P.vidaNave == null ? N.hpMax : Math.min(N.hpMax, HG.P.vidaNave);
+  N.hp = HG.P.vidaNave == null || HG.P.vidaNave <= 0 ? N.hpMax : Math.min(N.hpMax, HG.P.vidaNave);
 }
 
 // ---------- Proyectiles, enemigos y botín ----------
@@ -342,13 +342,14 @@ HG.Espacio = {
     cam.position.copy(new T.Vector3(0, 10, 40).applyQuaternion(N.g.quaternion).add(N.pos));
     HG.audio.musica("vuelo");
   },
-  salir() { HG.P.vidaNave = N.hp; cam.up.set(0, 1, 0); cam.fov = HG.ajustes.fov; cam.updateProjectionMatrix(); },
+  // si la nave explotó, vuelve reparada a la estación
+  salir() { HG.P.vidaNave = N.viva && N.hp > 0 ? N.hp : null; cam.up.set(0, 1, 0); cam.fov = HG.ajustes.fov; cam.updateProjectionMatrix(); },
   actualizar(dt, t, activo) {
     actualizarNave(dt, activo);
     gestionarPiratas(dt); actualizarEnemigos(dt); actualizarBalas(dt); actualizarParticulas(dt);
     estacion.userData.anillo.rotation.z += dt * 0.03; estacion.userData.luces.forEach((l, i) => { l.visible = Math.sin(t * 3 + i) > 0; });
     planetas.forEach(pl => { pl.g.userData.esfera.rotation.y += dt * 0.01; });
-    HG.P.vidaNave = N.hp;
+    if (N.viva) HG.P.vidaNave = N.hp;
     // aterrizar o atracar
     zonaCerca = null;
     if (N.viva) {

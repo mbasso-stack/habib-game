@@ -190,7 +190,7 @@ HG.partidaNueva = () => ({
   version: 1, monedas: 1000, comida: 100, naves: {}, naveActiva: -1, armas: ["laser"], equipadas: ["laser"],
   carga: {}, planetas: {}, derrotas: 0, amigos: [], clan: null, videos: {}, creditosVistos: false, vidaNave: null,
 });
-HG.cargarPartida = () => { try { const d = JSON.parse(localStorage.getItem("haluski_partida")); return d && d.version === 1 ? Object.assign(HG.partidaNueva(), d) : null; } catch (e) { return null; } };
+HG.cargarPartida = () => { try { const d = JSON.parse(localStorage.getItem("haluski_partida")); if (d && d.vidaNave != null && d.vidaNave <= 0) d.vidaNave = null; return d && d.version === 1 ? Object.assign(HG.partidaNueva(), d) : null; } catch (e) { return null; } };
 HG.guardarPartida = () => { try { localStorage.setItem("haluski_partida", JSON.stringify(HG.P)); } catch (e) {} };
 
 // ---------- Sonido ----------

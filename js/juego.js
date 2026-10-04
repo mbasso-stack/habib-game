@@ -67,7 +67,7 @@ HG.juego = {
     HG.guardarPartida(); this.comprobarFinal();
   },
   muerte() {
-    HG.P.carga = {}; HG.P.vidaNave = null;
+    HG.P.carga = {}; HG.P.vidaNave = null; HG.P.comida = Math.max(HG.P.comida, 25); // vuelves reparado y con algo de comida
     transicion(() => { ir("estacion", "hangar"); HG.ui.toast("Has reaparecido en la estación. Tu nave está reparada, pero perdiste la carga.", "rojo"); }, 500);
   },
   comprobarFinal() {
