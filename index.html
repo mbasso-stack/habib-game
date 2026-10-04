@@ -117,7 +117,7 @@ try { record = +localStorage.getItem("haluski_record") || 0; } catch (e) {}
 let jugadores = [], balas, enemigos, meteoros, balasEnemigas, particulas, bonus, base, jefe;
 let temporizadorIntro = 0, spawnE = 0, spawnM = 0, sacudida = 0, ultimoBono = 0;
 let armas = { triple: false, misiles: false, pulso: false }, mejoras = { motores: 0, cadencia: 0, blindaje: 0, deposito: 0 };
-let combustible = 2, misiles = [], ondas = [], cdPulso = 0, tiendaTab = 0;
+let drenaje = 0, combustible = 6, misiles = [], ondas = [], cdPulso = 0, tiendaTab = 0;
 const maxComb = () => 6 + 4 * mejoras.deposito, maxVidas = () => 5 + mejoras.blindaje, CADENCIA = [0.2, 0.17, 0.14, 0.11];
 const CINE_A = 3.2, CINE_B = 3.6, CINE_C = 2.2, CINE_T = CINE_A + CINE_B + CINE_C;
 let cine = 0, exp = null, rocas = [], combustibles = [], cineAterrizo = false;
@@ -155,7 +155,7 @@ function prepararMenu() {
   balas = []; enemigos = []; meteoros = []; balasEnemigas = []; particulas = []; bonus = []; base = null; jefe = null; nivel = 1; progreso = 0; rayos = [];
 }
 function iniciarJuego() {
-  monedas = 0; colonias = []; bonusColonias = 0; combustible = 2;
+  monedas = 0; colonias = []; bonusColonias = 0; combustible = 6; drenaje = 0;
   armas = { triple: false, misiles: false, pulso: false }; mejoras = { motores: 0, cadencia: 0, blindaje: 0, deposito: 0 };
   nivel = 1; jugadores = crearJugadores(numJugadores);
   empezarNivel();
@@ -377,6 +377,8 @@ function actualizar(dt) {
   }
 
   if (cdPulso > 0) cdPulso -= dt;
+  drenaje += dt; // el depósito se va gastando mientras vuelas
+  if (drenaje >= 20) { drenaje -= 20; if (combustible > 0) combustible--; }
 
   // Avance del nivel
   if (estado === "jugando") {
@@ -502,7 +504,7 @@ function moverJugador(p, dt) {
   let dx = (activo(p, "der") ? 1 : 0) - (activo(p, "izq") ? 1 : 0), dy = (activo(p, "abj") ? 1 : 0) - (activo(p, "arr") ? 1 : 0);
   if (dx && dy) { dx *= 0.7071; dy *= 0.7071; }
   p.dx = dx; p.dy = dy;
-  const vel = p.vel * (1 + 0.12 * mejoras.motores);
+  const vel = p.vel * (1 + 0.12 * mejoras.motores) * (combustible <= 0 && estado !== "exploracion" ? 0.6 : 1);
   p.x = Math.max(45, Math.min(W - 20, p.x + dx * vel * dt));
   const minY = estado === "aterrizando" ? 20 : 120;
   p.y = Math.max(minY, Math.min(H - 30, p.y + dy * vel * dt));
@@ -1033,7 +1035,7 @@ function renderSuperficie(dt, ev) {
   for (const p of vivos()) {
     p.astr = p.astr || {};
     const m = malla(p.astr, () => crearMallaAstronauta(p));
-    m.position.set(X3(p.x), SY, Z3(p.y)); m.scale.setScalar(1.7 * esc); m.visible = esc > 0.01;
+    m.position.set(X3(p.x), SY, Z3(p.y)); m.scale.setScalar(1.05 * esc); m.visible = esc > 0.01;
     const mov = Math.abs(p.dx || 0) + Math.abs(p.dy || 0) > 0 && ev === "exploracion";
     if (mov) m.rotation.y += ang(m.rotation.y, Math.atan2(p.dx, p.dy)) * Math.min(1, dt * 12);
     const paso = mov ? Math.sin(t * 12) * 0.7 : 0;
@@ -1104,7 +1106,7 @@ function dibujarHUD() {
   ctx.fillStyle = "#ffcc33"; ctx.beginPath(); ctx.arc(W / 2 + 14, 27, 5, 0, 6.283); ctx.fill();
   texto(`${monedas}`, W / 2 + 24, 27, 12, "#ffd166", "left");
   ctx.fillStyle = "#ff9a3c"; ctx.beginPath(); ctx.moveTo(W / 2 + 74, 21); ctx.lineTo(W / 2 + 80, 27); ctx.lineTo(W / 2 + 74, 33); ctx.lineTo(W / 2 + 68, 27); ctx.fill();
-  texto(`${combustible}/${maxComb()}`, W / 2 + 86, 27, 12, "#ffb066", "left");
+  texto(`${combustible}/${maxComb()}`, W / 2 + 86, 27, 12, combustible <= 1 && Math.sin(t * 8) > 0 ? "#ff5a4a" : "#ffb066", "left");
   bloqueJugador(jugadores[0], 12, "left");
   if (jugadores[1]) bloqueJugador(jugadores[1], W - 12, "right");
   // barra de progreso hacia la base
@@ -1177,7 +1179,7 @@ function dibujar() {
   if (estado === "menu") { dibujarMenu(); return; }
 
   // etiquetas sobre los objetos 3D
-  if (jugadores.length > 1 && estado !== "cinematica" && estado !== "tienda" && estado !== "ataque") for (const p of jugadores) if (p.vivo) { const s = proyectar(p.x, p.y, estado === "exploracion" ? 64 : 40); texto(`J${p.id + 1}`, s.x, s.y - 4, 12, p.color, "center", false); }
+  if (jugadores.length > 1 && estado !== "cinematica" && estado !== "tienda" && estado !== "ataque") for (const p of jugadores) if (p.vivo) { const s = proyectar(p.x, p.y, estado === "exploracion" ? 42 : 40); texto(`J${p.id + 1}`, s.x, s.y - 4, 12, p.color, "center", false); }
   for (const o of bonus) {
     const s = proyectar(o.x, o.y, 26);
     texto(o.tipo === "escudo" ? "ESCUDO" : o.tipo === "doble" ? "x2" : "♥", s.x, s.y, 12, "#fff");
@@ -1186,6 +1188,7 @@ function dibujar() {
 
   if (estado !== "cinematica" && estado !== "tienda" && estado !== "ataque") dibujarHUD();
   if (estado === "exploracion") ctx.clearRect(0, 40, 44, H - 40);
+  if (combustible <= 0 && (estado === "jugando" || estado === "jefe" || estado === "aterrizando")) texto("¡SIN COMBUSTIBLE! Motores al 60%", W / 2, 62, 18, Math.sin(t * 8) > 0 ? "#ff5a4a" : "#ffb066");
   if (jefe) dibujarBarraJefe(jefe);
 
   if (estado === "intro") {
@@ -1210,7 +1213,7 @@ function dibujar() {
     texto(`Tiempo: ${Math.max(0, Math.ceil(exp.tiempo))} s`, W / 2, 62, 20, exp.tiempo < 10 ? "#ff7a7a" : "#fff");
     if (exp.tiempo > 40) texto("¡Rompe las rocas para sacar combustible!", W / 2, 100, 20, "#ffb066");
     if (exp.msgT > 0) texto(exp.msg, W / 2, 130, 20, "#ff9a9a");
-    texto("Mantén el botón de disparo junto a una roca para picarla · R: volver a la nave", W / 2, H - 22, 15, "#dfe9ff");
+    texto("Mantén el disparo junto a una roca para picarla · El depósito se gasta al volar · R: volver a la nave", W / 2, H - 22, 15, "#dfe9ff");
   } else if (estado === "colonizando") {
     const f = 1 - temporizadorIntro / 4.5, nom = PLANETAS[nivel - 1].n;
     texto(f < 0.4 ? `Aterrizando en ${nom}...` : `¡Colonia fundada en ${nom}!`, W / 2, 400, 30, "#7CFC9A");
