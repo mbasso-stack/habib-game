@@ -18,6 +18,7 @@
 <div id="ayuda">
   <b>1 jugador:</b> <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> o <kbd>WASD</kbd> mover · <kbd>Espacio</kbd> disparar<br>
   <b>2 jugadores:</b> J1 <kbd>WASD</kbd> + <kbd>Espacio</kbd> · J2 <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> + <kbd>Enter</kbd><br>
+  <b>Ataque cargado:</b> mantén el disparo 2 s y suéltalo<br>
   <kbd>P</kbd> pausa · <kbd>M</kbd> sonido
 </div>
 <script src="three.min.js"></script>
@@ -68,6 +69,8 @@ function beep(f1, f2, dur, tipo = "square", vol = 0.06) {
 const sfx = {
   disparo: () => beep(900, 300, 0.1, "square", 0.03),
   moneda: () => beep(1200, 1900, 0.08, "triangle", 0.05),
+  carga: () => beep(500, 1500, 0.25, "triangle", 0.07),
+  rayo: () => { beep(150, 40, 0.5, "sawtooth", 0.1); beep(900, 100, 0.4, "square", 0.05); },
   explosion: () => beep(220, 40, 0.3, "sawtooth", 0.07),
   golpe: () => beep(300, 60, 0.35, "sawtooth", 0.09),
   bonus: () => { beep(500, 900, 0.12, "triangle", 0.08); setTimeout(() => beep(900, 1400, 0.12, "triangle", 0.08), 90); },
@@ -111,7 +114,7 @@ let nivel = 1, cfg, t = 0, progreso = 0, record = 0;
 try { record = +localStorage.getItem("haluski_record") || 0; } catch (e) {}
 let jugadores = [], balas, enemigos, meteoros, balasEnemigas, particulas, bonus, base, jefe;
 let temporizadorIntro = 0, spawnE = 0, spawnM = 0, sacudida = 0, ultimoBono = 0;
-let monedas = 0, monedasSuelo = [], colonias = [], tiendaSel = 0, ataqueLineas = [], tiendaMsg = "", tiendaMsgT = 0, bonusColonias = 0;
+let rayos = [], monedas = 0, monedasSuelo = [], colonias = [], tiendaSel = 0, ataqueLineas = [], tiendaMsg = "", tiendaMsgT = 0, bonusColonias = 0;
 const COSTES = [15, 30, 50], NOMBRES_PROT = ["Escudo orbital", "Torretas láser", "Fortaleza total"];
 
 const NOMBRES = ["Haluski", "Jugador 2"];
@@ -123,7 +126,7 @@ function crearJugadores(n) {
     mapa: n === 1 ? MAPAS.solo : (i === 0 ? MAPAS.wasd : MAPAS.flechas),
     spawnX: n === 1 ? W / 2 : W / 2 + (i === 0 ? -90 : 90),
     x: 0, y: H - 80, r: 16, vel: 300, vidas: 3, escudo: 0, invul: 0, cool: 0, doble: 0,
-    vivo: true, puntos: 0, aterrizado: false,
+    vivo: true, puntos: 0, aterrizado: false, carga: 0,
   }));
 }
 const vivos = () => jugadores.filter(p => p.vivo);
@@ -142,7 +145,7 @@ function objetivo(x, y) {
 function prepararMenu() {
   jugadores = crearJugadores(numJugadores);
   jugadores.forEach((p, i) => { p.x = W / 2 + (numJugadores === 1 ? 0 : (i ? 60 : -60)); p.y = 235; p.invul = 0; });
-  balas = []; enemigos = []; meteoros = []; balasEnemigas = []; particulas = []; bonus = []; base = null; jefe = null; nivel = 1; progreso = 0;
+  balas = []; enemigos = []; meteoros = []; balasEnemigas = []; particulas = []; bonus = []; base = null; jefe = null; nivel = 1; progreso = 0; rayos = [];
 }
 function iniciarJuego() {
   monedas = 0; colonias = []; bonusColonias = 0;
@@ -152,7 +155,8 @@ function iniciarJuego() {
 function empezarNivel() {
   cfg = configNivel(nivel);
   balas = []; enemigos = []; meteoros = []; balasEnemigas = []; particulas = []; bonus = [];
-  base = null; jefe = null; progreso = 0; spawnE = 1; spawnM = 0.5; monedasSuelo = [];
+  base = null; jefe = null; progreso = 0; spawnE = 1; spawnM = 0.5; monedasSuelo = []; rayos = [];
+  for (const p of jugadores) p.carga = 0;
   for (const p of jugadores) {
     if (!p.vivo) { p.vivo = true; p.vidas = 1; } // los caídos vuelven con 1 vida
     p.x = p.spawnX; p.y = H - 80; p.invul = 2; p.cool = 0; p.aterrizado = false;
@@ -196,6 +200,13 @@ function soltarBonus(x, y) {
   const tipos = todosLlenos ? ["escudo", "doble"] : ["escudo", "doble", "vida"];
   bonus.push({ x, y, r: 13, tipo: tipos[rint(0, tipos.length - 1)] });
 }
+function matarEnemigo(e, dueño) {
+  sumar(dueño, e.tipo === "tirador" ? 200 : 100); explosion(e.x, e.y, 18); sfx.explosion(); soltarBonus(e.x, e.y); soltarMonedas(e);
+}
+function lanzarRayo(p) {
+  rayos.push({ x: p.x, y: p.y - 30, r: 34, dueño: p, golpeados: new Set() });
+  sfx.rayo(); sacudida = Math.max(sacudida, 0.15);
+}
 function soltarMonedas(e) {
   const n = e.tipo === "tirador" ? 3 : e.tipo === "zigzag" ? rint(1, 2) : (Math.random() < 0.7 ? 1 : 0);
   for (let i = 0; i < n; i++) monedasSuelo.push({ x: e.x + rnd(-14, 14), y: e.y + rnd(-10, 10), r: 10, vx: rnd(-30, 30), vy: rnd(60, 110) });
@@ -211,7 +222,7 @@ function dañarJugador(p) {
   if (p.escudo > 0) { p.escudo = 0; p.invul = 1; sfx.golpe(); explosion(p.x, p.y, 10, "#6cf"); return; }
   p.vidas--; sacudida = 0.4; sfx.golpe();
   explosion(p.x, p.y, 24, "#ff6a4d");
-  p.doble = 0;
+  p.doble = 0; p.carga = 0;
   if (p.vidas <= 0) {
     p.vivo = false;
     if (!vivos().length) { estado = "derrota"; sfx.derrota(); guardarRecord(); }
@@ -268,7 +279,16 @@ function actualizar(dt) {
     moverJugador(p, dt);
     // Disparo
     p.cool -= dt;
-    if (p.vivo && !p.aterrizado && estado !== "aterrizando" && activo(p, "disp") && p.cool <= 0) {
+    const puedeDisparar = p.vivo && !p.aterrizado && estado !== "aterrizando";
+    const pulsando = puedeDisparar && activo(p, "disp");
+    if (pulsando) {
+      const antes = p.carga; p.carga += dt;
+      if (antes < 2 && p.carga >= 2) sfx.carga();
+    } else {
+      if (puedeDisparar && p.carga >= 2) lanzarRayo(p); // al soltar con la carga completa: ataque cargado
+      p.carga = 0;
+    }
+    if (pulsando && p.carga < 2 && p.cool <= 0) {
       p.cool = 0.2;
       if (p.doble > 0) balas.push({ x: p.x - 10, y: p.y - 14, r: 3, dueño: p }, { x: p.x + 10, y: p.y - 14, r: 3, dueño: p });
       else balas.push({ x: p.x, y: p.y - 18, r: 3, dueño: p });
@@ -305,6 +325,19 @@ function actualizar(dt) {
   // Balas del jugador
   for (const b of balas) b.y -= 620 * dt;
   balas = balas.filter(b => b.y > -20);
+
+  // Rayos cargados: atraviesan enemigos, meteoritos y disparos enemigos
+  for (const r of rayos) {
+    r.y -= 520 * dt;
+    for (const e of enemigos) if (e.vida > 0 && !r.golpeados.has(e) && choque(r, e)) { r.golpeados.add(e); e.vida = 0; matarEnemigo(e, r.dueño); }
+    for (const m of meteoros) if (!m.muerto && choque(r, { x: m.x, y: m.y, r: m.r })) { m.muerto = true; sumar(r.dueño, 50); explosion(m.x, m.y, 14, "#b9a28a"); sfx.explosion(); }
+    for (const b of balasEnemigas) if (!b.muerta && choque(r, b)) b.muerta = true;
+    if (jefe && !jefe.entrando && !r.golpeados.has(jefe) && choque(r, jefe)) {
+      r.golpeados.add(jefe); jefe.vida -= 12; sumar(r.dueño, 120); explosion(jefe.x, jefe.y + 20, 20, "#fff", 200);
+      if (jefe.vida <= 0) jefeDerrotado(r.dueño);
+    }
+  }
+  rayos = rayos.filter(r => r.y > -90);
 
   // Enemigos
   for (const e of enemigos) {
@@ -478,6 +511,8 @@ const GEO = {
   balaEn: new THREE.SphereGeometry(6, 10, 8),
   bonus: new THREE.OctahedronGeometry(14),
   moneda: new THREE.CylinderGeometry(8, 8, 2.4, 18),
+  rayo: new THREE.CylinderGeometry(30, 30, 170, 16).rotateX(Math.PI / 2),
+  rayoNucleo: new THREE.CylinderGeometry(11, 11, 170, 12).rotateX(Math.PI / 2),
   caja: new THREE.BoxGeometry(1, 1, 1),
   jefe: new THREE.OctahedronGeometry(50),
 };
@@ -525,7 +560,9 @@ function crearMallaJugador(p) {
   const llamas = [-1, 1].map(s => añadir(g, GJ.llama, matBrillo(0x8fe0ff), s * 6.5, 0, 33));
   const escudo = new THREE.Mesh(new THREE.SphereGeometry(34, 16, 12), new THREE.MeshBasicMaterial({ color: p.color, transparent: true, opacity: 0.25, wireframe: true }));
   escudo.visible = false; g.add(escudo);
-  g.userData = { llamas, escudo };
+  const carga = new THREE.Mesh(new THREE.SphereGeometry(30, 16, 12), new THREE.MeshBasicMaterial({ color: p.color, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false }));
+  carga.visible = false; g.add(carga);
+  g.userData = { llamas, escudo, carga };
   g.scale.setScalar(1.35);
   return g;
 }
@@ -684,6 +721,10 @@ function render3D(dt) {
     m.rotation.y = estado === "menu" ? t * 1.5 : 0;
     m.userData.llamas.forEach(l => l.scale.set(1, 1, 0.8 + Math.random() * 0.6));
     m.userData.escudo.visible = p.escudo > 0;
+    const c = Math.min(1, (p.carga || 0) / 2), cm = m.userData.carga;
+    cm.visible = c > 0.1 && p.vivo;
+    cm.scale.setScalar(0.3 + 0.7 * c + (c >= 1 ? 0.12 * Math.sin(t * 25) : 0));
+    cm.material.opacity = c >= 1 ? 0.7 : 0.15 + 0.3 * c;
   }
   for (const e of enemigos) {
     const m = malla(e, crearMallaEnemigo); m.position.set(X3(e.x), 0, Z3(e.y)); m.rotation.z = Math.sin(e.fase) * 0.3;
@@ -700,6 +741,15 @@ function render3D(dt) {
   }
   for (const o of bonus) {
     const m = malla(o, () => new THREE.Mesh(GEO.bonus, MAT_BONUS[o.tipo])); m.position.set(X3(o.x), 6, Z3(o.y)); m.rotation.y = t * 3;
+  }
+  for (const r of rayos) {
+    const m = malla(r, () => {
+      const g = new THREE.Group(), col = r.dueño ? r.dueño.color : "#ffffff";
+      g.add(new THREE.Mesh(GEO.rayo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false })));
+      g.add(new THREE.Mesh(GEO.rayoNucleo, new THREE.MeshBasicMaterial({ color: 0xffffff })));
+      return g;
+    });
+    m.position.set(X3(r.x), 0, Z3(r.y));
   }
   for (const c of monedasSuelo) {
     const m = malla(c, () => new THREE.Mesh(GEO.moneda, MAT_MONEDA)); m.position.set(X3(c.x), 5, Z3(c.y)); m.rotation.set(t * 6 + c.x, 0, 0.3);
@@ -748,6 +798,12 @@ function bloqueJugador(p, x, align) {
   if (p.escudo) extra += " · ESCUDO";
   if (p.doble > 0) extra += ` · x2 ${Math.ceil(p.doble)}s`;
   texto(extra, x, 27, 12, "#dfe9ff", align);
+  const c = Math.min(1, (p.carga || 0) / 2);
+  if (c > 0) {
+    const x0 = align === "left" ? x : x - 100;
+    ctx.fillStyle = "#0008"; ctx.fillRect(x0, 33, 100, 4);
+    ctx.fillStyle = c >= 1 ? (Math.sin(t * 20) > 0 ? "#fff" : "#ffd166") : p.color; ctx.fillRect(x0, 33, 100 * c, 4);
+  }
 }
 function dibujarHUD() {
   ctx.fillStyle = "#0007"; ctx.fillRect(0, 0, W, 38);
@@ -875,6 +931,7 @@ window.__haluski = {
   get estado() { return estado; },
   get jugadores() { return jugadores; },
   adelantar() { progreso = 0.999; },
+  get rayos() { return rayos; },
   get monedas() { return monedas; }, get colonias() { return colonias; }, dar(n) { monedas += n; },
   iniciar(n, nv = 1) { numJugadores = n; nivel = nv; jugadores = crearJugadores(n); empezarNivel(); estado = "jugando"; },
 };
