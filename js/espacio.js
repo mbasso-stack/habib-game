@@ -4,12 +4,31 @@
 const HG = window.HG, T = THREE;
 const escena = new T.Scene();
 escena.fog = new T.FogExp2(HG.lin("#03040a"), 0.000035);
-escena.add(new T.AmbientLight(HG.lin("#8090b0"), 0.35));
-escena.add(new T.HemisphereLight(HG.lin("#9fbfff"), HG.lin("#201810"), 0.35));
+escena.userData.brillo = [0.85, 0.72]; escena.userData.exposicion = 1.15;
+escena.add(new T.AmbientLight(HG.lin("#8090b0"), 0.22));
+escena.add(new T.HemisphereLight(HG.lin("#9fbfff"), HG.lin("#201810"), 0.25));
+escena.environment = HG.envEspacio(HG.SOL_DIR);
 const sol = new T.DirectionalLight(HG.lin("#fff2dd"), 1.6); sol.position.set(4000, 2500, 3000); escena.add(sol);
 const sky = HG.cielo(20000); escena.add(sky);
 const solVisible = HG.malla(new T.SphereGeometry(500, 24, 16), HG.brillo("#fff4d0"), 12000, 7500, 9000, escena, false);
 HG.malla(new T.SphereGeometry(1100, 24, 16), HG.brillo("#ffcf80", 0.25), 12000, 7500, 9000, escena, false);
+// destello del sol en la lente
+const texDestello = (r0, col) => HG.lienzoTex(128, 128, (c, w, h) => { const g = c.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, col); g.addColorStop(r0, col.replace(/[\d.]+\)$/, "0.25)")); g.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = g; c.fillRect(0, 0, w, h); });
+if (T.Lensflare) {
+  const lf = new T.Lensflare(), luzSol = new T.PointLight(0xffffff, 0, 1); luzSol.position.set(12000, 7500, 9000);
+  lf.addElement(new T.LensflareElement(texDestello(0.2, "rgba(255,244,220,1)"), 700, 0, HG.lin("#fff1dd")));
+  lf.addElement(new T.LensflareElement(texDestello(0.5, "rgba(140,190,255,0.5)"), 90, 0.5));
+  lf.addElement(new T.LensflareElement(texDestello(0.5, "rgba(255,190,120,0.45)"), 140, 0.75));
+  lf.addElement(new T.LensflareElement(texDestello(0.6, "rgba(160,255,200,0.35)"), 60, 1.0));
+  luzSol.add(lf); escena.add(luzSol);
+}
+// polvo espacial alrededor de la nave: da sensación de velocidad
+const NPOLVO = 500, polvoPos = new Float32Array(NPOLVO * 3), CUBO = 260;
+for (let i = 0; i < NPOLVO * 3; i++) polvoPos[i] = HG.rnd(-CUBO, CUBO);
+const polvoGeo = new T.BufferGeometry(); polvoGeo.setAttribute("position", new T.BufferAttribute(polvoPos, 3));
+const texMota = HG.lienzoTex(32, 32, (c) => { const g = c.createRadialGradient(16, 16, 0, 16, 16, 16); g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(1, "rgba(255,255,255,0)"); c.fillStyle = g; c.fillRect(0, 0, 32, 32); });
+const polvo = new T.Points(polvoGeo, new T.PointsMaterial({ map: texMota, size: 0.5, color: HG.lin("#9fb2cc"), transparent: true, opacity: 0.55, depthWrite: false, blending: T.AdditiveBlending }));
+polvo.frustumCulled = false; escena.add(polvo);
 
 // Estación y planetas
 const estacion = HG.modeloEstacion(); estacion.rotation.y = Math.PI; escena.add(estacion);
@@ -348,7 +367,12 @@ HG.Espacio = {
     actualizarNave(dt, activo);
     gestionarPiratas(dt); actualizarEnemigos(dt); actualizarBalas(dt); actualizarParticulas(dt);
     estacion.userData.anillo.rotation.z += dt * 0.03; estacion.userData.luces.forEach((l, i) => { l.visible = Math.sin(t * 3 + i) > 0; });
-    planetas.forEach(pl => { pl.g.userData.esfera.rotation.y += dt * 0.01; });
+    planetas.forEach(pl => { pl.g.userData.esfera.rotation.y += dt * 0.01; if (pl.g.userData.nubes) pl.g.userData.nubes.rotation.y += dt * 0.014; });
+    for (let i = 0; i < NPOLVO; i++) for (let k = 0; k < 3; k++) { // el polvo se recoloca alrededor de la nave
+      const j = i * 3 + k, c = N.pos.getComponent(k); let v = polvoPos[j];
+      if (v < c - CUBO) v += 2 * CUBO; else if (v > c + CUBO) v -= 2 * CUBO; polvoPos[j] = v;
+    }
+    polvoGeo.attributes.position.needsUpdate = true;
     if (N.viva) HG.P.vidaNave = N.hp;
     // aterrizar o atracar
     zonaCerca = null;

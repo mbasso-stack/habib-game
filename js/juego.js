@@ -110,11 +110,11 @@ function bucle(ahora) {
   const dt = Math.min(0.05, (ahora - ultimo) / 1000); ultimo = ahora; t += dt;
   const activo = JUEGO.includes(estado) && !HG.ui.panelAbierto() && !HG.video.activo() && !fundiendo;
   if (estado === "selector") {
-    HG.Vestuario.actualizar(dt, t); HG.renderer.render(HG.Vestuario.escena, HG.camara);
+    HG.Vestuario.actualizar(dt, t); HG.renderizar(HG.Vestuario.escena, HG.Vestuario.camara);
   } else if (estado === "menu" || estado === "intro") {
     if (HG.Estacion.posJugador()) HG.Estacion.actualizar(dt, t, false);
     const a = t * 0.06; HG.camara.position.set(Math.sin(a) * 26, 9 + Math.sin(t * 0.2) * 2, Math.cos(a) * 18); HG.camara.lookAt(0, 3, 0);
-    HG.renderer.render(HG.Estacion.escena, HG.camara);
+    HG.renderizar(HG.Estacion.escena, HG.camara);
   } else if (JUEGO.includes(estado)) {
     const P = HG.P;
     if (activo || estado === "espacio" && !HG.ui.panelAbierto()) {
@@ -125,7 +125,7 @@ function bucle(ahora) {
     }
     if (!HG.ui.panelAbierto() || estado !== "espacio") modulo().actualizar(dt, t, activo);
     HG.ui.comun();
-    HG.renderer.render(modulo().escena, HG.camara);
+    HG.renderizar(modulo().escena, HG.camara);
     autoguardado += dt; if (autoguardado > 10) { autoguardado = 0; HG.guardarPartida(); }
   }
   HG.audio.actualizar(dt);

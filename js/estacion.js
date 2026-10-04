@@ -9,8 +9,9 @@ escena.background = HG.lin("#05070d");
 escena.fog = new T.Fog(HG.lin("#0b0f18"), 60, 140);
 
 // ---------- Luces ----------
-escena.add(new T.HemisphereLight(HG.lin("#dbe8ff"), HG.lin("#4a4236"), 1.0));
-const sol = new T.DirectionalLight(HG.lin("#fff1dc"), 1.5);
+escena.userData.brillo = [0.55, 0.8];
+escena.add(new T.HemisphereLight(HG.lin("#dbe8ff"), HG.lin("#4a4236"), 0.4));
+const sol = new T.DirectionalLight(HG.lin("#fff1dc"), 1.4);
 sol.position.set(-20, 40, 18); sol.castShadow = true;
 sol.shadow.mapSize.set(2048, 2048); Object.assign(sol.shadow.camera, { left: -45, right: 45, top: 35, bottom: -35, near: 1, far: 120 });
 sol.shadow.bias = -0.0005; escena.add(sol);
@@ -18,10 +19,35 @@ const luz = (color, i, d, x, y, z) => { const l = new T.PointLight(HG.lin(color)
 luz("#ffcf8a", 2.2, 30, -28, 7, 22); luz("#e8f0ff", 1.6, 40, -10, 16, 0); luz("#e8f0ff", 1.6, 40, 14, 16, 18); luz("#6fd8ff", 1.6, 24, -27, 6, -17); luz("#ffffff", 1.4, 34, 26, 12, 8); luz("#8fb4ff", 1.2, 40, 6, 12, -22);
 
 // ---------- Sala ----------
-const suelo = M(new T.PlaneGeometry(AN * 2, FO * 2), new T.MeshStandardMaterial({ map: HG.texRejilla([40, 30]), roughness: 0.75, metalness: 0.6 }), 0, 0, 0, escena);
+// suelo de chapas de 2 m con juntas, tornillos, rozaduras y manchas; el mapa de rugosidad hace que unas zonas brillen más que otras
+function dibujarSuelo(c, w, h, rug) {
+  const r = HG.semilla(7), n = 4, t = w / n, gris = v => `rgb(${v | 0},${v | 0},${v | 0})`;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const v = r(); c.fillStyle = rug ? gris(130 + v * 50) : `hsl(214, 9%, ${17 + v * 6}%)`; c.fillRect(i * t, j * t, t, t); }
+  for (let k = 0; k < 2600; k++) { c.fillStyle = rug ? gris(r() < 0.5 ? 70 : 170) : (r() < 0.5 ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.05)"); c.globalAlpha = rug ? 0.25 : 1; c.fillRect(r() * w, r() * h, 1 + r() * 3, 1); }
+  c.globalAlpha = 1;
+  for (let k = 0; k < 70; k++) { // rozaduras
+    c.strokeStyle = rug ? gris(200) : "rgba(10,12,16,0.35)"; c.lineWidth = 1 + r() * 2.5; c.globalAlpha = rug ? 0.5 : 1;
+    const x = r() * w, y = r() * h, a = r() * 6.28, L = 30 + r() * 140; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + Math.cos(a + 0.4) * L / 2, y + Math.sin(a + 0.4) * L / 2, x + Math.cos(a) * L, y + Math.sin(a) * L); c.stroke();
+  }
+  for (let k = 0; k < 4; k++) { // manchas de aceite (más brillantes)
+    const x = r() * w, y = r() * h, rr = 50 + r() * 90, g = c.createRadialGradient(x, y, 0, x, y, rr);
+    g.addColorStop(0, rug ? "rgba(90,90,90,0.25)" : "rgba(8,9,12,0.18)"); g.addColorStop(1, "rgba(0,0,0,0)"); c.globalAlpha = 1; c.fillStyle = g; c.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+  }
+  c.globalAlpha = 1;
+  for (let i = 0; i <= n; i++) { // juntas con bisel
+    c.fillStyle = rug ? gris(235) : "#07080b"; c.fillRect(i * t - 3, 0, 6, h); c.fillRect(0, i * t - 3, w, 6);
+    if (!rug) { c.fillStyle = "rgba(255,255,255,0.08)"; c.fillRect(i * t + 3, 0, 2, h); c.fillRect(0, i * t + 3, w, 2); }
+  }
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) for (const [dx, dy] of [[14, 14], [t - 14, 14], [14, t - 14], [t - 14, t - 14]]) {
+    c.fillStyle = rug ? gris(60) : "#8b929b"; c.beginPath(); c.arc(i * t + dx, j * t + dy, 4, 0, 6.283); c.fill();
+  }
+}
+const texSuelo = HG.lienzoTex(1024, 1024, (c, w, h) => dibujarSuelo(c, w, h, false), [10, 7.5]);
+const rugSuelo = HG.lienzoTex(1024, 1024, (c, w, h) => dibujarSuelo(c, w, h, true), [10, 7.5]);
+const suelo = M(new T.PlaneGeometry(AN * 2, FO * 2), new T.MeshStandardMaterial({ map: texSuelo, roughnessMap: rugSuelo, roughness: 1, metalness: 0.45 }), 0, 0, 0, escena);
 suelo.rotation.x = -Math.PI / 2; suelo.castShadow = false;
-const matPared = new T.MeshStandardMaterial({ map: HG.texPanel([8, 2]), roughness: 0.6, metalness: 0.5 });
-const matParedC = new T.MeshStandardMaterial({ map: HG.texPanel([6, 2]), roughness: 0.6, metalness: 0.5 });
+const matPared = new T.MeshStandardMaterial({ map: HG.texPanel([8, 2]), color: HG.lin("#9da5b0"), roughness: 0.55, metalness: 0.55 });
+const matParedC = new T.MeshStandardMaterial({ map: HG.texPanel([6, 2]), color: HG.lin("#9da5b0"), roughness: 0.55, metalness: 0.55 });
 M(new T.BoxGeometry(1, ALTO, FO * 2), matParedC, -AN - 0.5, ALTO / 2, 0, escena); // oeste
 M(new T.BoxGeometry(1, ALTO, FO * 2), matParedC, AN + 0.5, ALTO / 2, 0, escena);  // este
 M(new T.BoxGeometry(AN * 2, ALTO, 1), matPared, 0, ALTO / 2, FO + 0.5, escena);     // sur
@@ -109,11 +135,55 @@ const CAJAS = [[8, 18, 2.4], [11, 21, 1.8], [-6, 20, 2], [34, -24, 2.4], [30, -2
 CAJAS.forEach(([x, z, s]) => M(HG.cajaR(s, s, s, 0.12), HG.mat("#5d6570", { r: 0.6, m: 0.5 }), x, s / 2, z, escena));
 for (let i = 0; i < 5; i++) M(new T.CylinderGeometry(0.6, 0.6, 1.4, 16), HG.mat(i % 2 ? "#c0661f" : "#2f5ea6", { r: 0.5, m: 0.4 }), 36, 0.7, 24 - i * 1.4, escena);
 
+// ---------- Estructura y ambiente ----------
+// columnas de acero, tuberías con soportes, focos colgantes con conos de luz, polvo en el aire y un planeta tras el ventanal
+const mAcero = HG.mat("#3b424b", { r: 0.45, m: 0.85 }), mAceroC = HG.mat("#5a626d", { r: 0.4, m: 0.85 });
+const columna = (x, z, ry) => {
+  const g = HG.pivote(escena, x, 0, z); g.rotation.y = ry;
+  M(new T.BoxGeometry(0.25, ALTO, 0.9), mAcero, 0, ALTO / 2, 0, g);
+  for (const s of [-1, 1]) M(new T.BoxGeometry(0.9, ALTO, 0.12), mAceroC, 0, ALTO / 2, s * 0.45, g);
+  M(new T.BoxGeometry(1.4, 0.5, 1.4), mAcero, 0, 0.25, 0, g);
+  M(new T.BoxGeometry(0.12, 1.6, 0.5), HG.mat("#0e1a24", { e: "#9fdcff", ei: 2.2 }), 0.5, 9, 0, g, false);
+};
+const COL_O = [-25, -8, 4, 25], COL_E = [-25, -15, -5, 5, 15, 25], COL_S = [-20, -10, 0, 10, 20, 30]; // sin tapar la puerta, los carteles ni la tienda
+COL_O.forEach(z => columna(-AN + 0.5, z, 0)); COL_E.forEach(z => columna(AN - 0.5, z, Math.PI)); COL_S.forEach(x => columna(x, FO - 0.5, Math.PI / 2));
+const tuberia = (x0, z0, x1, z1, y, r, color) => {
+  const L = Math.hypot(x1 - x0, z1 - z0), ang = Math.atan2(z1 - z0, x1 - x0), mt = HG.mat(color, { r: 0.35, m: 0.8 });
+  const t = M(new T.CylinderGeometry(r, r, L, 14).rotateZ(Math.PI / 2), mt, (x0 + x1) / 2, y, (z0 + z1) / 2, escena, false); t.rotation.y = -ang;
+  for (let i = 2; i < L; i += 4) {
+    const x = x0 + Math.cos(ang) * i, z = z0 + Math.sin(ang) * i;
+    const a = M(new T.TorusGeometry(r + 0.03, 0.03, 6, 14), mAceroC, x, y, z, escena, false); a.rotation.y = Math.PI / 2 - ang;
+  }
+};
+tuberia(-AN + 1.2, FO - 1.2, AN - 1.2, FO - 1.2, 4.6, 0.22, "#8a6a42"); tuberia(-AN + 1.2, FO - 1.6, AN - 1.2, FO - 1.6, 5.3, 0.14, "#5f7c8c");
+tuberia(AN - 1.2, -FO + 1, AN - 1.2, FO - 1, 3.8, 0.2, "#6d747e"); tuberia(AN - 1.6, -FO + 1, AN - 1.6, FO - 1, 4.4, 0.12, "#8a3b2f");
+tuberia(-AN + 1.2, -FO + 1, -AN + 1.2, FO - 1, 18.5, 0.3, "#6d747e");
+const texCono = HG.lienzoTex(32, 128, (c, w, h) => { const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, "rgba(255,240,215,0.55)"); g.addColorStop(1, "rgba(255,240,215,0)"); c.fillStyle = g; c.fillRect(0, 0, w, h); });
+const matCono = new T.MeshBasicMaterial({ map: texCono, transparent: true, opacity: 0.16, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide, fog: false });
+for (const [x, z] of [[-14, -12], [2, -4], [18, -14], [-12, 8], [6, 12], [24, 22], [-26, 4]]) {
+  M(new T.CylinderGeometry(0.03, 0.03, ALTO - 12.6, 4), mAcero, x, (ALTO + 12.6) / 2, z, escena, false);
+  M(new T.CylinderGeometry(0.5, 1.1, 0.7, 20, 1, true), HG.mat("#2a2f36", { r: 0.5, m: 0.7, dbl: true }), x, 12.3, z, escena, false);
+  M(new T.CircleGeometry(1.0, 20).rotateX(Math.PI / 2), HG.brillo("#fff4e2"), x, 11.96, z, escena, false);
+  M(new T.ConeGeometry(5.5, 11.9, 28, 1, true), matCono, x, 11.95 / 2, z, escena, false);
+}
+const POLVO = 700, polvoGeo = new T.BufferGeometry(), pp = new Float32Array(POLVO * 3);
+for (let i = 0; i < POLVO; i++) { pp[i * 3] = HG.rnd(-AN, AN); pp[i * 3 + 1] = HG.rnd(0.3, 14); pp[i * 3 + 2] = HG.rnd(-FO, FO); }
+polvoGeo.setAttribute("position", new T.BufferAttribute(pp, 3));
+const texMota = HG.lienzoTex(32, 32, (c, w, h) => { const g = c.createRadialGradient(16, 16, 0, 16, 16, 16); g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(1, "rgba(255,255,255,0)"); c.fillStyle = g; c.fillRect(0, 0, w, h); });
+const polvo = new T.Points(polvoGeo, new T.PointsMaterial({ map: texMota, size: 0.07, transparent: true, opacity: 0.5, depthWrite: false, blending: T.AdditiveBlending, color: HG.lin("#fff1dc") }));
+escena.add(polvo);
+const planetaVentana = M(new T.SphereGeometry(34, 64, 40), new T.MeshStandardMaterial({ map: HG.texPlaneta(HG.PLANETAS[1], 512), roughness: 0.9, metalness: 0 }), -10, -6, -100, escena, false);
+planetaVentana.material.fog = false;
+const halo = new T.Sprite(new T.SpriteMaterial({ map: texMota, color: HG.lin("#ffb878"), transparent: true, opacity: 0.35, blending: T.AdditiveBlending, depthWrite: false, fog: false }));
+halo.scale.set(86, 86, 1); halo.position.set(-10, -6, -101); escena.add(halo);
+escena.environment = HG.envOscuro(); // reflejos de una sala oscura con tiras de luz
+
 // ---------- Colisiones ----------
 const cajasCol = [ // [x0, x1, z0, z1]
   [TI.x - 6, TI.x + 6, TI.z - 2.2, FO], [CL.x - 3.6, CL.x + 3.6, CL.z - 3.6, CL.z + 3.6], [13.8, 16.2, 1.3, 2.7], [35, 37, 17, 25],
   ...CAJAS.map(([x, z, s]) => [x - s / 2, x + s / 2, z - s / 2, z + s / 2]),
 ];
+COL_O.forEach(z => cajasCol.push([-AN, -AN + 1.3, z - 0.75, z + 0.75])); COL_E.forEach(z => cajasCol.push([AN - 1.3, AN, z - 0.75, z + 0.75])); COL_S.forEach(x => cajasCol.push([x - 0.75, x + 0.75, FO - 1.3, FO]));
 let cajaNave = null;
 const colision = (x, z, r) => {
   for (const c of cajasCol) if (x > c[0] - r && x < c[1] + r && z > c[2] - r && z < c[3] + r) return true;
@@ -214,7 +284,9 @@ HG.Estacion = {
       w.p.animar("andar", w.t * 0.9, dt);
     }
     if (mezclador) mezclador.update(dt);
-    holoPlaneta.rotation.y += dt * 0.6; holo.rotation.y += dt * 0.15;
+    holoPlaneta.rotation.y += dt * 0.6; holo.rotation.y += dt * 0.15; planetaVentana.rotation.y += dt * 0.004;
+    for (let i = 0; i < POLVO; i++) { pp[i * 3 + 1] += Math.sin(t * 0.3 + i) * dt * 0.05; pp[i * 3] += dt * 0.05; if (pp[i * 3] > AN) pp[i * 3] = -AN; }
+    polvoGeo.attributes.position.needsUpdate = true;
     // zona más cercana
     zonaCerca = null; let dmin = 1e9;
     for (const z of ZONAS()) {

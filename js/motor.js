@@ -30,6 +30,69 @@ function ajustar() {
 }
 addEventListener("resize", ajustar); ajustar();
 
+// ---------- Postprocesado (brillo de luces, color, viñeta y antialiasing) ----------
+const FINAL = {
+  uniforms: { tDiffuse: { value: null }, vig: { value: 0.32 }, sat: { value: 1.1 }, con: { value: 1.06 } },
+  vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float vig, sat, con; varying vec2 vUv;
+    vec3 aSRGB(vec3 c){ return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
+    void main(){ vec3 c = texture2D(tDiffuse, vUv).rgb; float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      c = mix(vec3(l), c, sat); c = max((c - 0.18) * con + 0.18, 0.0); c = aSRGB(c);
+      vec2 d = vUv - 0.5; c *= 1.0 - vig * dot(d, d) * 1.8; gl_FragColor = vec4(c, 1.0); }`,
+};
+let composer = null, pasoRender = null, pasoBrillo = null, pasoFxaa = null;
+function crearComposer() {
+  if (!T.EffectComposer) return;
+  const pr = renderer.getPixelRatio(), w = innerWidth, h = innerHeight;
+  const rt = new T.WebGLRenderTarget(w * pr, h * pr, { type: renderer.capabilities.isWebGL2 ? T.HalfFloatType : T.UnsignedByteType, format: T.RGBAFormat });
+  composer = new T.EffectComposer(renderer, rt);
+  pasoRender = new T.RenderPass(new T.Scene(), camara); composer.addPass(pasoRender);
+  pasoBrillo = new T.UnrealBloomPass(new T.Vector2(w, h), 0.6, 0.5, 0.78); composer.addPass(pasoBrillo);
+  composer.addPass(new T.ShaderPass(FINAL));
+  pasoFxaa = new T.ShaderPass(T.FXAAShader); composer.addPass(pasoFxaa);
+  ajustarComposer();
+}
+function ajustarComposer() {
+  if (!composer) return;
+  const pr = renderer.getPixelRatio(); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight);
+  pasoFxaa.uniforms.resolution.value.set(1 / (innerWidth * pr), 1 / (innerHeight * pr));
+}
+addEventListener("resize", ajustarComposer);
+HG.brilloEscena = (fuerza, umbral = 0.78) => { if (pasoBrillo) { pasoBrillo.strength = fuerza; pasoBrillo.threshold = umbral; } };
+// Cada escena puede llevar su propio brillo (escena.userData.brillo = [fuerza, umbral]) y exposición
+HG.renderizar = (escena, cam) => {
+  const u = escena.userData;
+  renderer.toneMappingExposure = u.exposicion || 1.3;
+  if (pasoBrillo && u.brillo) { pasoBrillo.strength = u.brillo[0]; pasoBrillo.threshold = u.brillo[1]; }
+  if (composer && HG.ajustes.calidad !== "baja") { pasoRender.scene = escena; pasoRender.camera = cam; pasoFxaa.enabled = HG.ajustes.calidad === "alta"; composer.render(); }
+  else renderer.render(escena, cam);
+};
+// Reflejos: entornos generados (sala oscura, espacio, cielo de cada planeta)
+const pmrem = new T.PMREMGenerator(renderer);
+HG.envDeEscena = esc => pmrem.fromScene(esc, 0.02).texture; // la escena solo puede tener materiales opacos (lo aditivo estropea el formato RGBE)
+// Sala oscura con tiras y paneles de luz: reflejos creíbles para interiores metálicos
+let envOscuro = null;
+HG.envOscuro = () => envOscuro || (envOscuro = (() => {
+  const esc = new T.Scene(), caja = new T.BoxGeometry(1, 1, 1);
+  const sala = new T.Mesh(new T.BoxGeometry(24, 12, 24), new T.MeshBasicMaterial({ color: new T.Color(0x16191e), side: T.BackSide })); sala.position.y = 4; esc.add(sala);
+  const luz = (c, i, x, y, z, sx, sy, sz) => { const m = new T.Mesh(caja, new T.MeshBasicMaterial({ color: new T.Color(c).multiplyScalar(i) })); m.position.set(x, y, z); m.scale.set(sx, sy, sz); esc.add(m); };
+  for (let i = -1; i <= 1; i++) luz(0xfff1dc, 7, i * 5, 9.9, 0, 0.7, 0.1, 18);
+  luz(0x5a7cff, 1.4, 0, 4, -11.9, 16, 7, 0.1);
+  luz(0xffc070, 4, -11.9, 3, 5, 0.1, 2.5, 3); luz(0x9fdcff, 4, 11.9, 3, -5, 0.1, 2.5, 3); luz(0xffffff, 2.5, 6, 3, 11.9, 4, 2, 0.1);
+  luz(0x30343b, 1, 0, -1.95, 0, 24, 0.1, 24);
+  return pmrem.fromScene(esc, 0.03).texture;
+})());
+HG.envDeTextura = tex => pmrem.fromEquirectangular(tex).texture;
+// Espacio: negro con el disco del sol y un leve resplandor azul y naranja (reflejos fuertes del sol en el metal)
+let envEspacio = null;
+HG.envEspacio = dirSol => envEspacio || (envEspacio = (() => {
+  const esc = new T.Scene();
+  esc.add(new T.Mesh(new T.SphereGeometry(50, 16, 8), new T.MeshBasicMaterial({ color: new T.Color(0x05070d), side: T.BackSide })));
+  const disco = (c, i, dir, r) => { const m = new T.Mesh(new T.SphereGeometry(r, 16, 8), new T.MeshBasicMaterial({ color: new T.Color(c).multiplyScalar(i) })); m.position.copy(dir).normalize().multiplyScalar(40); esc.add(m); };
+  disco(0xfff2dd, 40, dirSol, 3); disco(0x2a4c9a, 0.6, new T.Vector3(-1, -0.4, -0.6), 22); disco(0x8a4a2a, 0.35, new T.Vector3(0.6, -0.8, 0.5), 18);
+  return pmrem.fromScene(esc, 0.02).texture;
+})());
+
 // ---------- Materiales ----------
 const cacheMat = {};
 // o: { r: rugosidad, m: metal, e: color emisivo, ei: intensidad, flat, op: opacidad, dbl }
@@ -134,12 +197,48 @@ HG.geoRoca = (sem, aplastar = 1) => {
   for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (0.8 + r() * 0.32), p.getY(i) * (0.8 + r() * 0.32) * aplastar, p.getZ(i) * (0.8 + r() * 0.32));
   g.computeVertexNormals(); return g;
 };
-const TEXP = {};
-HG.texPlaneta = P => TEXP[P.id] || (TEXP[P.id] = HG.lienzoTex(1024, 512, (c, w, h) => {
-  c.fillStyle = P.base; c.fillRect(0, 0, w, h);
-  for (let k = 0; k < 140; k++) { c.fillStyle = P.tierra; c.globalAlpha = HG.rnd(0.45, 0.9); c.beginPath(); c.ellipse(Math.random() * w, HG.rnd(40, h - 40), HG.rnd(30, 120), HG.rnd(16, 60), Math.random() * 3, 0, 6.283); c.fill(); }
-  c.globalAlpha = 1;
-  for (let k = 0; k < 60; k++) { c.fillStyle = `rgba(255,255,255,${P.nubes * HG.rnd(0.2, 0.6)})`; c.beginPath(); c.ellipse(Math.random() * w, HG.rnd(20, h - 20), HG.rnd(60, 180), HG.rnd(5, 16), 0, 0, 6.283); c.fill(); }
+// Planetas: relieve fractal en 3D sobre la esfera (sin costuras), continentes, polos helados y nubes aparte
+const TEXP = {}, TEXN = {};
+const ruido3 = (() => { let n = null; return () => n || (n = new T.ImprovedNoise()); })();
+const fbm = (x, y, z, oct) => { const N = ruido3(); let s = 0, a = 0.5, f = 1; for (let i = 0; i < oct; i++) { s += a * N.noise(x * f, y * f, z * f); a *= 0.5; f *= 2.03; } return s; };
+const esferaUV = (u, v) => { const lon = u * Math.PI * 2, lat = (v - 0.5) * Math.PI; return [Math.cos(lat) * Math.cos(lon), Math.sin(lat), Math.cos(lat) * Math.sin(lon)]; };
+HG.fbm = fbm;
+// Trabajo pesado que puede esperar: se hace de uno en uno cuando el juego ya ha arrancado
+const pendientes = [];
+HG.mejorarLuego = fn => { pendientes.push(fn); if (pendientes.length === 1) setTimeout(siguiente, 1500); };
+function siguiente() { const fn = pendientes.shift(); if (fn) fn(); if (pendientes.length) setTimeout(siguiente, 250); }
+HG.texPlaneta = (P, W = 1024) => TEXP[P.id + W] || (TEXP[P.id + W] = HG.lienzoTex(W, W / 2, (c, w, h) => {
+  const img = c.createImageData(w, h), d = img.data, sem = P.radio * 0.013;
+  const A = new T.Color(P.base), B = new T.Color(P.tierra), col = new T.Color(), tmp = new T.Color();
+  const mar = P.id === "aurora" || P.id === "onix", lava = P.id === "ignea", hielo = P.id === "glacia";
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const [px, py, pz] = esferaUV(x / w, 1 - y / h);
+    let e = fbm(px * 2.2 + sem, py * 2.2, pz * 2.2 - sem, 6) + 0.5;            // altura 0..1 aprox.
+    const det = fbm(px * 9 + 3, py * 9, pz * 9, 3);
+    if (lava) { // corteza oscura con grietas de lava
+      const g = Math.abs(fbm(px * 4 + 7, py * 4, pz * 4, 4)); col.copy(A).multiplyScalar(0.7 + det); if (g < 0.05) col.lerp(B, 1 - g / 0.05);
+    } else if (mar) {
+      const costa = 0.52;
+      if (e < costa) col.copy(A).multiplyScalar(0.55 + e * 0.9); // mar: más oscuro en lo profundo
+      else { col.copy(B).lerp(tmp.set("#8a7a55"), HG.clamp((e - costa) * 4, 0, 1) * 0.6).multiplyScalar(0.8 + det * 0.8); if (e > 0.72) col.lerp(tmp.set("#f2f4f6"), HG.clamp((e - 0.72) * 6, 0, 1)); }
+    } else { // desiertos y mundos helados: bandas de terreno
+      col.copy(A).lerp(B, HG.clamp(e * 1.4 - 0.2 + det * 0.6, 0, 1)).multiplyScalar(0.8 + det * 0.5);
+      if (hielo) col.lerp(tmp.set("#7fb2c9"), HG.clamp(Math.abs(det) * 2.5 - 0.3, 0, 0.6));
+    }
+    const polo = Math.abs(py); if (!lava && polo > 0.82 + det * 0.08) col.lerp(tmp.set("#f4f8fb"), 0.9);
+    const k = (y * w + x) * 4; d[k] = HG.clamp(col.r, 0, 1) * 255; d[k + 1] = HG.clamp(col.g, 0, 1) * 255; d[k + 2] = HG.clamp(col.b, 0, 1) * 255; d[k + 3] = 255;
+  }
+  c.putImageData(img, 0, 0);
+}));
+HG.texNubes = (P, W = 1024) => TEXN[P.id + W] || (TEXN[P.id + W] = HG.lienzoTex(W, W / 2, (c, w, h) => {
+  const img = c.createImageData(w, h), d = img.data, sem = P.radio * 0.021;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const [px, py, pz] = esferaUV(x / w, 1 - y / h);
+    const q = fbm(px * 1.5 + sem, py * 4, pz * 1.5, 2) * 0.6; // remolinos estirados en latitud
+    const n = fbm(px * 3 + q + sem, py * 3 + q, pz * 3 - q, 5) + 0.5, a = HG.clamp((n - (1 - P.nubes * 1.2)) * 3, 0, 1);
+    const k = (y * w + x) * 4; d[k] = d[k + 1] = d[k + 2] = 255; d[k + 3] = a * 255;
+  }
+  c.putImageData(img, 0, 0);
 }));
 
 // ---------- Entrada ----------
@@ -184,6 +283,7 @@ HG.aplicarAjustes = () => {
   renderer.setPixelRatio(q === "baja" ? 0.75 : q === "media" ? Math.min(devicePixelRatio || 1, 1.25) : Math.min(devicePixelRatio || 1, 2));
   renderer.shadowMap.enabled = q !== "baja";
   camara.fov = HG.ajustes.fov; camara.updateProjectionMatrix(); ajustar();
+  if (!composer) crearComposer(); else ajustarComposer();
   HG.audio && HG.audio.volumen();
 };
 HG.partidaNueva = () => ({
@@ -265,9 +365,10 @@ HG.ControlPie = class {
     this.p = personaje; this.pos = new T.Vector3(); this.vy = 0; this.suelo = true;
     this.yaw = 0; this.pitch = 0.25; this.dist = 4.2; this.rumbo = 0; this.estado = "quieto";
     this.vel = opciones.vel || 4.2; this.limites = opciones.limites; this.colision = opciones.colision || (() => false);
+    this.altura = opciones.altura || (() => 0); // altura del suelo en (x, z)
     this.accion = 0; this.pasoT = 0;
   }
-  colocar(x, z, rumbo = 0) { this.pos.set(x, 0, z); this.rumbo = rumbo; this.yaw = rumbo; this.vy = 0; this.p.grupo.position.copy(this.pos); this.p.grupo.rotation.y = rumbo; }
+  colocar(x, z, rumbo = 0) { this.pos.set(x, this.altura(x, z), z); this.rumbo = rumbo; this.yaw = rumbo; this.vy = 0; this.p.grupo.position.copy(this.pos); this.p.grupo.rotation.y = rumbo; }
   actualizar(dt, controlActivo, lentitud = 1) {
     const I = HG.input;
     if (controlActivo) {
@@ -296,14 +397,17 @@ HG.ControlPie = class {
       this.rumbo += HG.angDif(this.rumbo, Math.atan2(fx, fz)) * Math.min(1, dt * 12);
       this.pasoT += dt * (corre ? 2.6 : 1.7); if (this.pasoT > 1 && this.suelo) { this.pasoT = 0; HG.audio.sfx("paso"); }
     }
+    const piso = this.altura(this.pos.x, this.pos.z);
     this.vy -= 14 * dt; this.pos.y += this.vy * dt;
-    if (this.pos.y <= 0) { this.pos.y = 0; this.vy = 0; this.suelo = true; }
+    if (this.pos.y <= piso) { this.pos.y = piso; this.vy = 0; this.suelo = true; }
+    else if (this.suelo && this.pos.y - piso < 0.35 && this.vy <= 0) this.pos.y = piso; // bajar cuestas sin despegar
     if (this.accion > 0) this.accion -= dt;
     this.estado = this.accion > 0 ? "picar" : !this.suelo ? "saltar" : moviendo ? (corre ? "correr" : "andar") : "quieto";
     const g = this.p.grupo; g.position.copy(this.pos); g.rotation.y = this.rumbo;
     // cámara detrás del personaje
     const cp = Math.cos(this.pitch), objetivo = new T.Vector3(this.pos.x, this.pos.y + 1.55, this.pos.z);
     const cam = new T.Vector3(objetivo.x - Math.sin(this.yaw) * this.dist * cp, objetivo.y + Math.sin(this.pitch) * this.dist, objetivo.z - Math.cos(this.yaw) * this.dist * cp);
+    cam.y = Math.max(cam.y, this.altura(cam.x, cam.z) + 0.4); // que la cámara no se meta bajo el terreno
     camara.position.lerp(cam, Math.min(1, dt * 14)); camara.lookAt(objetivo);
   }
 };

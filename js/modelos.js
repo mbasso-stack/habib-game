@@ -18,12 +18,36 @@ const GN = {
   canon: new T.CylinderGeometry(1.4, 1.4, 20, 8).rotateX(Math.PI / 2), motor: new T.CylinderGeometry(5.5, 6.5, 10, 16).rotateX(Math.PI / 2),
   llama: new T.ConeGeometry(3.2, 18, 12).rotateX(Math.PI / 2), vaina: new T.BoxGeometry(6, 6, 22), torreta: new T.CylinderGeometry(4, 5, 4, 12),
 };
+// Paneles del casco: juntas, remaches, rejillas, marcas y desgaste (las formas extruidas usan coordenadas de mundo, por eso la repetición pequeña)
+function dibujarCasco(c, w, h, rug) {
+  const r = HG.semilla(5), g = v => `rgb(${v | 0},${v | 0},${v | 0})`;
+  c.fillStyle = rug ? g(120) : "#e9ecf1"; c.fillRect(0, 0, w, h);
+  const paneles = [[0, 0, 256, 160], [256, 0, 256, 96], [256, 96, 128, 160], [384, 96, 128, 160], [0, 160, 160, 192], [160, 160, 96, 192], [0, 352, 256, 160], [256, 256, 256, 128], [256, 384, 256, 128]];
+  for (const [x, y, pw, ph] of paneles) {
+    const v = r(); c.fillStyle = rug ? g(90 + v * 70) : `hsl(215, 10%, ${86 + v * 7}%)`; c.fillRect(x + 2, y + 2, pw - 4, ph - 4);
+    c.strokeStyle = rug ? g(220) : "rgba(40,48,60,0.55)"; c.lineWidth = 2.5; c.strokeRect(x + 1, y + 1, pw - 2, ph - 2);
+    c.fillStyle = rug ? g(200) : "rgba(60,66,76,0.7)";
+    for (let i = 8; i < pw - 4; i += 16) { c.fillRect(x + i, y + 5, 2, 2); c.fillRect(x + i, y + ph - 7, 2, 2); }
+  }
+  if (!rug) {
+    c.fillStyle = "rgba(30,34,40,0.8)"; for (let i = 0; i < 6; i++) c.fillRect(290, 280 + i * 10, 80, 4); // rejilla
+    c.fillStyle = "#f2c230"; c.fillRect(20, 460, 120, 10); c.fillStyle = "#1b1b1b"; for (let x = 20; x < 140; x += 16) c.fillRect(x, 460, 8, 10);
+    c.fillStyle = "rgba(40,48,60,0.7)"; c.font = "bold 22px Arial"; c.fillText("HG-01", 300, 60);
+  }
+  for (let k = 0; k < 140; k++) { // desgaste y polvo
+    const x = r() * w, y = r() * h, rr = 6 + r() * 40, gr = c.createRadialGradient(x, y, 0, x, y, rr);
+    gr.addColorStop(0, rug ? "rgba(255,255,255,0.25)" : "rgba(70,60,50,0.07)"); gr.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = gr; c.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+  }
+}
+let _texCasco = null, _rugCasco = null;
+const texCasco = () => _texCasco || (_texCasco = HG.lienzoTex(512, 512, (c, w, h) => dibujarCasco(c, w, h, false), [1 / 22, 1 / 22]));
+const rugCasco = () => _rugCasco || (_rugCasco = HG.lienzoTex(512, 512, (c, w, h) => dibujarCasco(c, w, h, true), [1 / 22, 1 / 22]));
 HG.largoNave = idx => 12 + idx * 1.6;
 HG.modeloNave = (idx, asp = { nivel: 0, color: HG.COLORES_NAVE[0] }) => {
   const g = new T.Group(), m = new T.Group(); g.add(m);
   const n = asp.nivel || 0, col = asp.color || HG.COLORES_NAVE[0];
-  const casco = new T.MeshStandardMaterial({ color: HG.lin(idx === 9 ? "#f6f1e6" : "#f2f4f8"), roughness: n >= 2 ? 0.25 : 0.45, metalness: n >= 2 ? 0.75 : 0.35, emissive: HG.lin("#3a3f4a"), emissiveIntensity: 0.45 });
-  const panel = HG.mat("#dde2ea", { r: 0.5, m: 0.4, e: "#30343e", ei: 0.4 }), oscuro = HG.mat("#2b303c", { r: 0.5, m: 0.8 }), metal = HG.mat("#8a93a3", { r: 0.3, m: 0.9 });
+  const casco = new T.MeshStandardMaterial({ map: texCasco(), roughnessMap: rugCasco(), color: HG.lin(idx === 9 ? "#f6f1e6" : "#f2f4f8"), roughness: n >= 2 ? 0.6 : 0.85, metalness: n >= 2 ? 0.75 : 0.4, emissive: HG.lin("#3a3f4a"), emissiveIntensity: 0.15 });
+  const panel = new T.MeshStandardMaterial({ map: texCasco(), roughnessMap: rugCasco(), color: HG.lin("#d3d9e2"), roughness: 0.9, metalness: 0.45 }), oscuro = HG.mat("#2b303c", { r: 0.5, m: 0.8 }), metal = HG.mat("#8a93a3", { r: 0.3, m: 0.9 });
   const acento = n >= 1 ? HG.mat(col, { r: 0.4, m: 0.5, e: col, ei: 0.35 }) : HG.mat("#5d6878", { r: 0.5, m: 0.5 });
   const oro = HG.mat("#e2b44a", { r: 0.3, m: 0.9 });
   const add = (geo, mm, x, y, z, p = m) => M(geo, mm, x, y, z, p, false);
@@ -127,12 +151,36 @@ HG.modeloEstacion = () => {
 };
 
 // ---------- Planeta ----------
+// Esfera con relieve, capa de nubes que gira aparte y atmósfera que brilla en el borde iluminado
+const ATM = {
+  vertexShader: `varying vec3 vN; varying vec3 vV; varying vec3 vW;
+    void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vV = normalize(cameraPosition - w.xyz); gl_Position = projectionMatrix * viewMatrix * w; }`,
+  fragmentShader: `uniform vec3 color; uniform vec3 sol; uniform float fuerza; varying vec3 vN; varying vec3 vV; varying vec3 vW;
+    void main(){ float f = 1.0 - max(dot(vN, vV), 0.0); float luz = smoothstep(-0.3, 0.6, dot(vN, sol));
+      float a = pow(f, 3.0) * fuerza * (0.15 + luz); gl_FragColor = vec4(color * a, a); }`,
+};
+HG.SOL_DIR = new T.Vector3(4000, 2500, 3000).normalize();
+HG.matAtmosfera = (color, fuerza = 1.6) => new T.ShaderMaterial({
+  uniforms: { color: { value: HG.lin(color) }, sol: { value: HG.SOL_DIR }, fuerza: { value: fuerza } },
+  vertexShader: ATM.vertexShader, fragmentShader: ATM.fragmentShader, transparent: true, blending: T.AdditiveBlending, depthWrite: false, side: T.FrontSide,
+});
 HG.modeloPlaneta = (P) => {
   const g = new T.Group();
-  const esfera = new T.Mesh(new T.SphereGeometry(P.radio, 64, 40), new T.MeshStandardMaterial({ map: HG.texPlaneta(P), roughness: 0.9, metalness: 0 }));
+  // primero una textura pequeña (rápida) y, con el juego ya en marcha, la de alta resolución
+  const tex = HG.texPlaneta(P, 256), lava = P.id === "ignea";
+  const mat = new T.MeshStandardMaterial({ map: tex, bumpMap: tex, bumpScale: 2.5, roughness: P.id === "aurora" || P.id === "onix" ? 0.7 : 0.95, metalness: 0,
+    emissive: lava ? HG.lin("#ff5a1a") : new T.Color(0), emissiveMap: lava ? tex : null, emissiveIntensity: lava ? 0.6 : 0 });
+  const esfera = new T.Mesh(new T.SphereGeometry(P.radio, 96, 64), mat);
   g.add(esfera);
-  g.add(new T.Mesh(new T.SphereGeometry(P.radio * 1.06, 48, 32), new T.MeshBasicMaterial({ color: HG.lin(P.atm), transparent: true, opacity: 0.18, side: T.BackSide, blending: T.AdditiveBlending, depthWrite: false })));
-  g.userData.esfera = esfera;
+  HG.mejorarLuego(() => { const t = HG.texPlaneta(P); mat.map = mat.bumpMap = t; if (lava) mat.emissiveMap = t; mat.needsUpdate = true; });
+  let nubes = null;
+  if (P.nubes > 0) {
+    const mn = new T.MeshStandardMaterial({ map: HG.texNubes(P, 256), transparent: true, depthWrite: false, roughness: 1 });
+    nubes = new T.Mesh(new T.SphereGeometry(P.radio * 1.012, 96, 64), mn); g.add(nubes);
+    HG.mejorarLuego(() => { mn.map = HG.texNubes(P); mn.needsUpdate = true; });
+  }
+  g.add(new T.Mesh(new T.SphereGeometry(P.radio * 1.045, 64, 40), HG.matAtmosfera(P.atm)));
+  g.userData.esfera = esfera; g.userData.nubes = nubes;
   return g;
 };
 HG.cielo = (radio) => {
