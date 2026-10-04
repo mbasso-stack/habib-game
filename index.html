@@ -30,6 +30,8 @@ const cv = document.getElementById("juego");
 const ctx = cv.getContext("2d");
 const W = cv.width, H = cv.height;
 const TOTAL_NIVELES = 10;
+const TRUCOS = new URLSearchParams(location.search).has("trucos"); // modo prueba: ?trucos
+let nivelInicial = 1;
 
 // ---------- Entrada ----------
 const teclas = {};
@@ -141,6 +143,7 @@ const vivos = () => jugadores.filter(p => p.vivo);
 const totalPuntos = () => jugadores.reduce((s, p) => s + p.puntos, 0);
 function sumar(p, n) { if (p) p.puntos += n; else jugadores[0].puntos += n; }
 function guardarRecord() {
+  if (TRUCOS) return;
   const total = totalPuntos();
   if (total > record) { record = total; try { localStorage.setItem("haluski_record", record); } catch (e) {} }
 }
@@ -158,7 +161,8 @@ function prepararMenu() {
 function iniciarJuego() {
   monedas = 0; colonias = []; bonusColonias = 0; combustible = 6; drenaje = 0;
   armas = { triple: false, misiles: false, pulso: false }; mejoras = { motores: 0, cadencia: 0, blindaje: 0, deposito: 0, iman: 0, carga: 0, reparador: 0, pico: 0, bateria: 0, botas: 0 };
-  nivel = 1; jugadores = crearJugadores(numJugadores);
+  nivel = TRUCOS ? nivelInicial : 1; jugadores = crearJugadores(numJugadores);
+  if (TRUCOS) armas = { triple: true, misiles: true, pulso: true };
   empezarNivel();
 }
 function empezarNivel() {
@@ -257,6 +261,7 @@ function dispararEnemigo(x, y, tx, ty, vel = 220) {
 // ---------- Daño ----------
 function dañarJugador(p) {
   if (p.invul > 0 || !p.vivo || p.aterrizado) return;
+  if (TRUCOS) { p.invul = 1; explosion(p.x, p.y, 10, "#6cf"); sfx.golpe(); return; }
   if (p.escudo > 0) { p.escudo = 0; p.invul = 1; sfx.golpe(); explosion(p.x, p.y, 10, "#6cf"); return; }
   p.vidas--; sacudida = 0.4; sfx.golpe();
   explosion(p.x, p.y, 24, "#ff6a4d");
@@ -272,12 +277,17 @@ function actualizar(dt) {
   t += dt;
   const enAccion = estado === "jugando" || estado === "jefe";
   if (sacudida > 0) sacudida -= dt;
+  if (TRUCOS) {
+    monedas = 99999; combustible = maxComb();
+    if (hit("KeyN") && estado === "jugando") progreso = 1; // salta al final del nivel
+  }
 
   if (estado === "menu") {
     const antes = numJugadores;
     if (hit("Digit1") || hit("Numpad1") || hit("ArrowLeft")) numJugadores = 1;
     if (hit("Digit2") || hit("Numpad2") || hit("ArrowRight")) numJugadores = 2;
     if (numJugadores !== antes) prepararMenu();
+    if (TRUCOS) { if (hit("ArrowUp")) nivelInicial = Math.min(TOTAL_NIVELES, nivelInicial + 1); if (hit("ArrowDown")) nivelInicial = Math.max(1, nivelInicial - 1); }
     if (hit("Enter") || hit("Space")) iniciarJuego();
     return;
   }
@@ -1097,7 +1107,7 @@ function dibujarBarraJefe(j) {
 }
 
 function bloqueJugador(p, x, align) {
-  const vidas = p.vivo ? "♥".repeat(Math.max(0, p.vidas)) : "FUERA";
+  const vidas = TRUCOS ? "∞" : (p.vivo ? "♥".repeat(Math.max(0, p.vidas)) : "FUERA");
   texto(`${p.nombre}  ${vidas}`, x, 11, 13, p.vivo ? p.color : "#889", align);
   let extra = `${p.puntos} pts`;
   if (p.escudo) extra += " · ESCUDO";
@@ -1115,7 +1125,7 @@ function dibujarHUD() {
   texto(`Nivel ${nivel}/${TOTAL_NIVELES}`, W / 2, 11, 14, "#9bd");
   texto(`Total: ${totalPuntos()}`, W / 2 - 8, 27, 12, "#fff", "right");
   ctx.fillStyle = "#ffcc33"; ctx.beginPath(); ctx.arc(W / 2 + 14, 27, 5, 0, 6.283); ctx.fill();
-  texto(`${monedas}`, W / 2 + 24, 27, 12, "#ffd166", "left");
+  texto(TRUCOS ? "∞" : `${monedas}`, W / 2 + 24, 27, 12, "#ffd166", "left");
   ctx.fillStyle = "#ff9a3c"; ctx.beginPath(); ctx.moveTo(W / 2 + 74, 21); ctx.lineTo(W / 2 + 80, 27); ctx.lineTo(W / 2 + 74, 33); ctx.lineTo(W / 2 + 68, 27); ctx.fill();
   texto(`${combustible}/${maxComb()}`, W / 2 + 86, 27, 12, combustible <= 1 && Math.sin(t * 8) > 0 ? "#ff5a4a" : "#ffb066", "left");
   bloqueJugador(jugadores[0], 12, "left");
@@ -1145,7 +1155,7 @@ function dibujarTienda() {
   ctx.fillStyle = "#050818ee"; ctx.fillRect(0, 0, W, H);
   texto("PUERTO COLONIAL", W / 2, 50, 30, "#ffd166");
   ctx.fillStyle = "#ffcc33"; ctx.beginPath(); ctx.arc(W / 2 - 150, 88, 7, 0, 6.283); ctx.fill();
-  texto(`Monedas: ${monedas}`, W / 2 - 136, 88, 20, "#ffcc33", "left");
+  texto(TRUCOS ? "Monedas: ∞" : `Monedas: ${monedas}`, W / 2 - 136, 88, 20, "#ffcc33", "left");
   ctx.fillStyle = "#ff9a3c"; ctx.beginPath(); ctx.moveTo(W / 2 + 30, 80); ctx.lineTo(W / 2 + 38, 88); ctx.lineTo(W / 2 + 30, 96); ctx.lineTo(W / 2 + 22, 88); ctx.fill();
   texto(`Combustible: ${combustible}/${maxComb()}`, W / 2 + 46, 88, 20, "#ffb066", "left");
   ["Colonias", "Armas", "Nave", "Traje"].forEach((nom, i) => {
@@ -1183,6 +1193,10 @@ function dibujarMenu() {
   texto("Pulsa 1 o 2 (o ← →) para elegir", W / 2, 505, 15, "#8fa3d9");
   texto("ENTER o ESPACIO para empezar", W / 2, 538, 22, Math.sin(t * 5) > -0.3 ? "#7CFC9A" : "#4a8");
   texto(`Récord: ${record}`, W / 2, 575, 16, "#ffd166");
+  if (TRUCOS) {
+    texto("MODO PRUEBA: vidas, monedas y combustible infinitos", W / 2, 24, 16, "#ff9a9a");
+    texto(`Nivel de inicio: ${nivelInicial}  (↑ ↓ para cambiar) · N: saltar al final del nivel`, W / 2, 48, 14, "#ffd166");
+  }
 }
 
 function dibujar() {
