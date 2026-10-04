@@ -1,12 +1,20 @@
 # Haluski: Misión Colonial
 
-Juego de naves en 3D en el navegador. 10 niveles: coloniza planetas y protégelos con las monedas de los enemigos. Controles: 1 jugador flechas o WASD + Espacio. 2 jugadores (cooperativo local): J1 WASD + Espacio, J2 flechas + Enter. Mantén el disparo 2 s y suéltalo para lanzar un ataque cargado. P pausa, M sonido.
+Juego de naves en 3D para el navegador, en español.
 
-## Novedades
-- Tienda con tres secciones: Colonias (protección), Armas (disparo triple, misiles, bomba de pulso) y Nave (motores, cadencia, blindaje, depósito).
-- Al llegar a un planeta hay una cinemática de aterrizaje y el piloto sale de la nave: pica rocas con el botón de disparo para sacar combustible (R vuelve a la nave).
-- El combustible alimenta los misiles (1) y la bomba de pulso (3, tecla E o Shift derecho), y el depósito se va gastando mientras vuelas (1 cada 20 s). Sin combustible los motores van al 60%.
-- Más mejoras: Carga rápida, Reparador e Imán de monedas (sección Nave) y una sección Traje con Pico reforzado, Batería del traje y Botas propulsoras.
+## Fase 1 (sin conexión)
+- **Estación (lobby) en tercera persona:** camina por el hangar, habla con Bruno (hangar de naves), el robot (tienda), Nadia (amigos) y Kenji (clanes). Despega desde la plataforma.
+- **10 naves** que mejoran con el precio (de 1.000 a 800.000 monedas), con mejoras de Movimiento, Combate y Aspecto (5 niveles cada una).
+- **Vuelo 3D** con piratas, jefes, asteroides y 7 armas: láser, gatling, misiles, minas, plasma cargado, railgun y bomba de pulso.
+- **5 planetas** (Aurora, Duna, Glacia, Ígnea y Ónix) con 2 minerales cada uno para picar y vender. Derrota al jefe y planta tu bandera para conquistarlo.
+- **Supervivencia:** vida de la nave (si explota, pierdes la carga) y barra de comida (se compra en la tienda).
+- **Final:** 3 planetas conquistados, 100 enemigos derrotados y 1.000.000 de monedas.
+- El juego anterior sigue en `clasico.html`.
 
-## Modo prueba
-Abre el juego añadiendo `?trucos` al enlace: vidas, monedas y combustible infinitos, todas las armas desbloqueadas, nivel de inicio elegible con ↑ ↓ en el menú y tecla N para saltar al final del nivel. No guarda récord.
+## Controles
+- A pie: WASD, Shift correr, Espacio saltar, ratón cámara, E interactuar, clic o F picar.
+- Nave: ratón o flechas dirigir, W acelerar, S frenar, A/D desplazarse, Shift turbo, clic/Espacio/F disparar, 1-5 o rueda cambiar arma, E aterrizar o atracar.
+- Esc: pausa y ajustes.
+
+## Créditos
+Música «Interestelar» (Suno) y cinemáticas (Magnific) de Malik. Robot de la tienda: RobotExpressive de Tomás Laulhé (CC0), de los ejemplos de three.js. Motor 3D: three.js (MIT).
