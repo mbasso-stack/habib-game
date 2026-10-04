@@ -691,39 +691,49 @@ function formaGeo(pts, grosor = 2) {
 }
 const espejo = pts => pts.map(([x, y]) => [-x, y]).reverse();
 const vidrio = mat(0x9fd8ff, 0x1a4a7a, 0.7, 0.1, 0.9, false);
+function aletaGeo() { // estabilizador vertical, inclinado hacia fuera y barrido hacia atrás
+  const sh = new THREE.Shape(); [[6, 0], [-8, 0], [-14, 24], [-6, 24]].forEach(([x, y], i) => i ? sh.lineTo(x, y) : sh.moveTo(x, y));
+  const g = new THREE.ExtrudeGeometry(sh, { depth: 1.8, bevelEnabled: false }); g.translate(0, 0, -0.9); g.rotateY(Math.PI / 2); return g;
+}
+const ALA_J = [[-18, 10], [-36, 26], [-30, 31], [-18, 28]];
 const GJ = {
-  fuselaje: new THREE.CylinderGeometry(2.6, 8, 40, 14).rotateX(-Math.PI / 2),
-  morro: new THREE.ConeGeometry(2.6, 12, 14).rotateX(-Math.PI / 2),
-  alas: formaGeo([[-27, 17], [-27, 11], [-3, -6], [0, -9], [3, -6], [27, 11], [27, 17], [9, 13], [-9, 13]], 2),
-  cola: new THREE.BoxGeometry(1.6, 11, 10),
-  motor: new THREE.CylinderGeometry(3.6, 4.4, 12, 12).rotateX(Math.PI / 2),
-  tobera: new THREE.CylinderGeometry(3, 3.4, 2, 12).rotateX(Math.PI / 2),
-  llama: new THREE.ConeGeometry(2.8, 16, 10).rotateX(Math.PI / 2),
-  cabina: new THREE.SphereGeometry(5, 14, 10),
-  cañon: new THREE.CylinderGeometry(0.8, 0.8, 12, 6).rotateX(Math.PI / 2),
+  casco: formaGeo([[-3, -38], [3, -38], [10, -20], [16, 0], [20, 14], [18, 30], [-18, 30], [-20, 14], [-16, 0], [-10, -20]], 10),
+  lomo: formaGeo([[-2, -30], [2, -30], [6, -10], [8, 6], [-8, 6], [-6, -10]], 5),
+  ala: formaGeo(ALA_J, 1.6), alaD: formaGeo(espejo(ALA_J), 1.6), aleta: aletaGeo(),
+  bloque: new THREE.BoxGeometry(28, 13, 16), rejilla: new THREE.BoxGeometry(2, 5, 12), franja: new THREE.BoxGeometry(1.6, 0.8, 22),
+  cabina: new THREE.SphereGeometry(5, 14, 10), cabeza: new THREE.SphereGeometry(2.1, 10, 8), luz: new THREE.SphereGeometry(1.2, 6, 5),
+  cañon: new THREE.CylinderGeometry(1.4, 1.4, 20, 8).rotateX(Math.PI / 2), motor: new THREE.CylinderGeometry(5.5, 6.5, 10, 14).rotateX(Math.PI / 2),
+  llama: new THREE.ConeGeometry(3.2, 18, 10).rotateX(Math.PI / 2),
 };
+const SC_NAVE = 0.95;
 function añadir(g, geo, m, x, y, z) { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; }
 
-// Caza de Haluski: fuselaje blanco, alas delta con el color del jugador, doble motor
+// Caza de Haluski: casco blindado blanco, cabina con piloto, aletas con luces de posición, cañones bajo el morro y motores traseros
 function crearMallaJugador(p) {
   const g = new THREE.Group();
-  const casco = mat(0xe3e8f2, 0, 0, 0.35, 0.8, false), acento = mat(p.color, p.color, 0.35, 0.4, 0.6),
-        oscuro = mat(0x2b303c, 0, 0, 0.5, 0.8), metal = mat(0xaab3c4, 0, 0, 0.3, 0.9);
-  añadir(g, GJ.fuselaje, casco, 0, 0, 2); añadir(g, GJ.morro, casco, 0, 0, -24);
-  añadir(g, GJ.alas, acento, 0, -2, 2);
-  añadir(g, GJ.cabina, vidrio, 0, 5, -7).scale.set(0.75, 0.55, 1.8);
-  for (const s of [-1, 1]) {
-    añadir(g, GJ.cola, acento, s * 7, 7, 15).rotation.z = s * 0.35;
-    añadir(g, GJ.motor, oscuro, s * 6.5, 0, 18); añadir(g, GJ.tobera, metal, s * 6.5, 0, 24.5);
-    añadir(g, GJ.cañon, metal, s * 17, -3, -2);
+  const casco = mat(0xf2f4f8, 0x3a3f4a, 0.55, 0.45, 0.4), panel = mat(0xe0e4ec, 0x30343e, 0.5, 0.5, 0.4), oscuro = mat(0x2b303c, 0, 0, 0.5, 0.8),
+        metal = mat(0x8a93a3, 0, 0, 0.3, 0.9), acento = mat(p.color, p.color, 0.5, 0.4, 0.5);
+  añadir(g, GJ.casco, casco, 0, 0, 0); añadir(g, GJ.lomo, panel, 0, 5, 0);
+  añadir(g, GJ.cabina, vidrio, 0, 8, -12).scale.set(0.8, 0.55, 1.9);
+  añadir(g, GJ.cabeza, casco, 0, 8, -10.5);
+  añadir(g, GJ.cabeza, mat(0xd4a437, 0xd4a437, 0.5, 0.2, 0.9, false), 0, 8.3, -12.6).scale.set(0.6, 0.5, 0.35);
+  añadir(g, GJ.bloque, casco, 0, 2, 22);
+  añadir(g, GJ.ala, panel, 0, -5, 0); añadir(g, GJ.alaD, panel, 0, -5, 0);
+  for (const sg of [-1, 1]) {
+    añadir(g, GJ.aleta, casco, sg * 12, 5, 6).rotation.z = -sg * 0.3;
+    añadir(g, GJ.luz, matBrillo(sg < 0 ? 0xff3030 : 0x30ff60), sg * 19, 28, 17);
+    añadir(g, GJ.rejilla, oscuro, sg * 16.5, 2, 4);
+    añadir(g, GJ.franja, acento, sg * 3.6, 5.4, -8);
+    añadir(g, GJ.cañon, oscuro, sg * 5, -9, -27);
+    añadir(g, GJ.motor, oscuro, sg * 7.5, 2, 32);
   }
-  const llamas = [-1, 1].map(s => añadir(g, GJ.llama, matBrillo(0x8fe0ff), s * 6.5, 0, 33));
-  const escudo = new THREE.Mesh(new THREE.SphereGeometry(34, 16, 12), new THREE.MeshBasicMaterial({ color: p.color, transparent: true, opacity: 0.25, wireframe: true }));
+  const llamas = [-1, 1].map(sg => añadir(g, GJ.llama, matBrillo(0x8fe0ff), sg * 7.5, 2, 44));
+  const escudo = new THREE.Mesh(new THREE.SphereGeometry(48, 16, 12), new THREE.MeshBasicMaterial({ color: p.color, transparent: true, opacity: 0.25, wireframe: true }));
   escudo.visible = false; g.add(escudo);
-  const carga = new THREE.Mesh(new THREE.SphereGeometry(30, 16, 12), new THREE.MeshBasicMaterial({ color: p.color, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const carga = new THREE.Mesh(new THREE.SphereGeometry(42, 16, 12), new THREE.MeshBasicMaterial({ color: p.color, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false }));
   carga.visible = false; g.add(carga);
   g.userData = { llamas, escudo, carga };
-  g.scale.setScalar(1.35);
+  g.scale.setScalar(SC_NAVE);
   return g;
 }
 
@@ -900,7 +910,7 @@ function renderEspacio(dt, ev) {
     const m = malla(p, crearMallaJugador);
     m.position.set(X3(p.x), 0, Z3(p.y));
     const dv = ev === "cinematica" ? Math.min(1, cine / CINE_A) : 0, de = dv * dv * (3 - 2 * dv);
-    m.position.y = -de * 180; m.scale.setScalar(1.35 * (1 - 0.75 * de));
+    m.position.y = -de * 180; m.scale.setScalar(SC_NAVE * (1 - 0.75 * de));
     m.visible = p.vivo && !(p.invul > 0 && Math.floor(t * 14) % 2);
     m.rotation.z += ((-(p.dx || 0) * 0.45) - m.rotation.z) * Math.min(1, dt * 10);
     m.rotation.y = estado === "menu" ? t * 1.5 : 0;
@@ -1047,7 +1057,7 @@ function renderSuperficie(dt, ev) {
   // naves aparcadas (o aterrizando)
   for (const p of jugadores) {
     const m = malla(p, crearMallaJugador);
-    m.position.set(X3(p.spawnX), SY + 8 + alt, Z3(H - 100)); m.rotation.set(0, 0, 0); m.scale.setScalar(1.35);
+    m.position.set(X3(p.spawnX), SY + 9.5 + alt, Z3(H - 100)); m.rotation.set(0, 0, 0); m.scale.setScalar(SC_NAVE);
     m.visible = p.vivo;
     m.userData.llamas.forEach(l => { l.visible = alt > 2; l.scale.set(1, 1, 1.6 + Math.random() * 0.8); });
     m.userData.escudo.visible = false; m.userData.carga.visible = false;
