@@ -122,8 +122,12 @@ function pintar() {
       <label class="chk"><input type="checkbox" ${A.fps ? "checked" : ""} data-aj="fps"> Mostrar FPS</label>
       <h4>Tu personaje</h4><div class="skins">${HG.PERSONAJES.map((p, i) => `<button class="${A.aspecto === i ? "sel" : ""}" data-acc="skin" data-i="${i}"><span style="background:${p.traje}"></span>${p.nombre}</button>`).join("")}</div>
       </div><button class="boton" data-acc="cerrar">Listo</button>`;
+  } else if (t === "vestuario") {
+    const i = HG.Vestuario.sel, d = HG.PERSONAJES[i];
+    h += `<div class="vest"><h2>ELIGE TU PERSONAJE</h2><div class="vestNav"><button class="flecha" data-acc="vestPrev">◀</button><div><h3>${d.nombre}</h3><p class="rol">${d.rol}</p><p>${d.bio}</p></div><button class="flecha" data-acc="vestNext">▶</button></div>
+      <div class="puntos">${HG.PERSONAJES.map((p, k) => `<span class="${k === i ? "on" : ""}"></span>`).join("")}</div><button class="boton grande" data-acc="vestElegir">Jugar con ${d.corto}</button><p class="nota">← → para cambiar · ENTER para elegir</p></div>`;
   } else if (t === "pausa") {
-    h += `<div class="menuCentro"><h2>PAUSA</h2><button class="boton grande" data-acc="cerrar">Continuar</button><button class="boton" data-acc="abrir" data-t="ajustes">Ajustes</button><button class="boton" data-acc="abrir" data-t="controles">Controles</button><button class="boton sec" data-acc="salirMenu">Guardar y salir al menú</button></div>`;
+    h += `<div class="menuCentro"><h2>PAUSA</h2><button class="boton grande" data-acc="cerrar">Continuar</button>${HG.juego.estado() === "estacion" ? `<button class="boton" data-acc="cambiarPersonaje">Cambiar personaje</button>` : ""}<button class="boton" data-acc="abrir" data-t="ajustes">Ajustes</button><button class="boton" data-acc="abrir" data-t="controles">Controles</button><button class="boton sec" data-acc="salirMenu">Guardar y salir al menú</button></div>`;
   } else if (t === "controles") {
     h += `<div class="cab"><div><h2>CONTROLES</h2><p>Haz clic en el juego para controlar la cámara con el ratón · Esc para pausar</p></div><button class="x" data-acc="cerrar">✕</button></div><div class="dos ctrls">
       <div><h4>A pie</h4><p><kbd>W A S D</kbd> moverse · <kbd>Shift</kbd> correr · <kbd>Espacio</kbd> saltar<br><kbd>Ratón</kbd> cámara · <kbd>Rueda</kbd> zoom · <kbd>E</kbd> interactuar<br><kbd>Clic</kbd> o <kbd>F</kbd> picar minerales (en los planetas)</p></div>
@@ -132,7 +136,7 @@ function pintar() {
     const hay = !!HG.cargarPartida();
     h += `<div class="menuCentro principal"><h1>HALUSKI</h1><h3>MISIÓN COLONIAL</h3>
       ${hay ? `<button class="boton grande" data-acc="continuar">Continuar</button>` : ""}<button class="boton ${hay ? "" : "grande"}" data-acc="nueva">Nueva partida</button>
-      <button class="boton" data-acc="abrir" data-t="ajustes">Ajustes</button><button class="boton" data-acc="abrir" data-t="controles">Controles</button>
+      <button class="boton" data-acc="personajeMenu">Elegir personaje</button><button class="boton" data-acc="abrir" data-t="ajustes">Ajustes</button><button class="boton" data-acc="abrir" data-t="controles">Controles</button>
       <a class="boton sec" href="clasico.html">Juego clásico</a><p class="nota">Fase 1 · sin conexión: los demás pilotos son NPCs. El modo online llega en la fase 2.</p></div>`;
   } else if (t === "creditos") {
     const conq = Object.values(P.planetas).filter(p => p.conquistado).length;
@@ -172,6 +176,11 @@ panel.addEventListener("click", e => {
     case "salirClan": P.clan = null; break;
     case "colorClan": colorClan = b.dataset.c; panel.querySelectorAll("[data-acc=colorClan]").forEach(x => x.classList.toggle("sel", x === b)); return;
     case "crearClan": { const nom = ($("nombreClan").value || "").trim(); if (!nom) { HG.ui.toast("Escribe un nombre para tu clan.", "rojo"); return; } if (pagar(5000)) { P.clan = { nombre: nom, color: colorClan, lema: "Clan fundado por ti." }; HG.ui.toast(`Has fundado el clan ${nom}.`, "oro"); } break; }
+    case "vestPrev": HG.Vestuario.mostrar(HG.Vestuario.sel - 1); HG.audio.sfx("clic"); return;
+    case "vestNext": HG.Vestuario.mostrar(HG.Vestuario.sel + 1); HG.audio.sfx("clic"); return;
+    case "vestElegir": HG.Vestuario.elegir(); return;
+    case "personajeMenu": panelTipo = null; panel.style.display = "none"; HG.juego.elegirPersonaje(() => HG.juego.menu()); return;
+    case "cambiarPersonaje": panelTipo = null; panel.style.display = "none"; HG.pausado = false; HG.juego.elegirPersonaje(() => HG.juego.volverEstacion()); return;
     case "skin": HG.ajustes.aspecto = +b.dataset.i; HG.guardarAjustes(); break;
     case "salirMenu": HG.guardarPartida(); HG.ui.cerrar(); HG.juego.menu(); return;
     case "continuar": HG.juego.continuar(); HG.ui.cerrar(); return;

@@ -30,12 +30,18 @@ HG.juego = {
   nueva() {
     HG.P = HG.partidaNueva(); HG.guardarPartida();
     estado = "intro";
-    HG.video.reproducir("video/intro.mp4", () => transicion(() => {
+    HG.video.reproducir("video/intro.mp4", () => transicion(() => HG.juego.elegirPersonaje(() => transicion(() => {
       ir("estacion", "puerta");
       HG.ui.toast("Bienvenido a la estación. Tienes 1.000 monedas: compra tu primera nave con Bruno, en el hangar (al este).", "oro");
       setTimeout(() => HG.ui.toast("Haz clic para mover la cámara con el ratón. Esc para pausar."), 1500);
-    }));
+    }))));
   },
+  elegirPersonaje(volver) {
+    const antes = estado; HG.input.soltarRaton(); HG.ui.aviso(null); HG.ui.modoHud(null);
+    estado = "selector"; HG.Vestuario.abrir(() => volver(antes));
+  },
+  volverEstacion() { HG.juego._estado("estacion"); HG.ui.modoHud("pie"); },
+  _estado(e) { estado = e; },
   continuar() { HG.P = HG.cargarPartida() || HG.partidaNueva(); estado = "intro"; transicion(() => ir("estacion", "puerta")); },
   zona(nombre, arg) {
     const P = HG.P;
@@ -81,6 +87,7 @@ HG.juego = {
     if (tipo === "principal" && estado === "menu") HG.ui.abrir("principal");
     if ((tipo === "ajustes" || tipo === "controles") && estado === "menu") HG.ui.abrir("principal");
     if (tipo === "hangar" && estado === "estacion") HG.refrescarNaveHangar();
+    if (tipo === "vestuario") HG.Vestuario.alCerrar();
   },
 };
 
@@ -102,7 +109,9 @@ function bucle(ahora) {
   requestAnimationFrame(bucle);
   const dt = Math.min(0.05, (ahora - ultimo) / 1000); ultimo = ahora; t += dt;
   const activo = JUEGO.includes(estado) && !HG.ui.panelAbierto() && !HG.video.activo() && !fundiendo;
-  if (estado === "menu" || estado === "intro") {
+  if (estado === "selector") {
+    HG.Vestuario.actualizar(dt, t); HG.renderer.render(HG.Vestuario.escena, HG.camara);
+  } else if (estado === "menu" || estado === "intro") {
     if (HG.Estacion.posJugador()) HG.Estacion.actualizar(dt, t, false);
     const a = t * 0.06; HG.camara.position.set(Math.sin(a) * 26, 9 + Math.sin(t * 0.2) * 2, Math.cos(a) * 18); HG.camara.lookAt(0, 3, 0);
     HG.renderer.render(HG.Estacion.escena, HG.camara);

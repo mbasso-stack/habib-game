@@ -124,9 +124,9 @@ const colision = (x, z, r) => {
 // ---------- Personajes ----------
 const P = id => HG.PERSONAJES.find(p => p.id === id);
 const fijos = [
-  { p: HG.crearPersonaje(P("bruno")), x: 17.5, z: 4.5, r: -2.4, zona: "hangar", texto: "Hangar con Bruno" },
-  { p: HG.crearPersonaje(P("nadia")), x: -19, z: 19, r: -2.3, zona: "amigos", texto: "Amigos con Nadia" },
-  { p: HG.crearPersonaje(P("kenji")), x: -23, z: -13.5, r: -2.5, zona: "clanes", texto: "Sala de clanes con Kenji" },
+  { id: "bruno", p: HG.crearPersonaje(P("bruno")), x: 17.5, z: 4.5, r: -2.4, zona: "hangar", rolT: "Hangar", texto: "Hangar con Bruno" },
+  { id: "nadia", p: HG.crearPersonaje(P("nadia")), x: -19, z: 19, r: -2.3, zona: "amigos", rolT: "Amigos", texto: "Amigos con Nadia" },
+  { id: "kenji", p: HG.crearPersonaje(P("kenji")), x: -23, z: -13.5, r: -2.5, zona: "clanes", rolT: "Sala de clanes", texto: "Sala de clanes con Kenji" },
 ];
 fijos.forEach(f => { f.p.grupo.position.set(f.x, 0, f.z); f.p.grupo.rotation.y = f.r; escena.add(f.p.grupo); cajasCol.push([f.x - 0.5, f.x + 0.5, f.z - 0.5, f.z + 0.5]); });
 const PUNTOS = [[-10, 0], [0, 6], [10, -2], [-4, -14], [16, -10], [2, 14], [-16, 6], [20, 22], [-2, -24], [28, -14]];
@@ -171,6 +171,12 @@ function prepararJugador() {
   if (jugador && skinActual === skin) return;
   if (jugador) escena.remove(jugador.grupo);
   jugador = HG.crearPersonaje(HG.PERSONAJES[skin]); skinActual = skin; escena.add(jugador.grupo);
+  // si el jugador lleva a un personaje de la estación, Haluski ocupa su puesto
+  for (const f of fijos) {
+    const quiere = f.id === HG.PERSONAJES[skin].id ? "haluski" : f.id;
+    if (f.p.def.id !== quiere) { escena.remove(f.p.grupo); f.p = HG.crearPersonaje(P(quiere)); f.p.grupo.position.set(f.x, 0, f.z); f.p.grupo.rotation.y = f.r; escena.add(f.p.grupo); }
+    f.texto = `${f.rolT} con ${f.p.def.corto}`;
+  }
   const prev = control; control = new HG.ControlPie(jugador, { limites: [-AN + 1, AN - 1, -FO + 1, FO - 1], colision });
   if (prev) { control.colocar(prev.pos.x, prev.pos.z, prev.rumbo); control.yaw = prev.yaw; }
 }

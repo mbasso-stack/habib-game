@@ -4,13 +4,13 @@
 const HG = window.HG, T = THREE;
 
 HG.PERSONAJES = [
-  { id: "haluski", nombre: "Haluski", rol: "Protagonista", piel: "#f1c9a5", pelo: "#dcb468", peinado: "puntas", ojos: "#3d7fc4",
+  { id: "haluski", bio: "Piloto protagonista. Valiente, impulsivo y con un don para las naves.", corto: "Haluski", nombre: "Haluski", rol: "Protagonista", piel: "#f1c9a5", pelo: "#dcb468", peinado: "puntas", ojos: "#3d7fc4",
     traje: "#2f5ea6", panel: "#274f8d", cuello: "#9aa3ad", detalle: "#3a414c", guantes: "#8c939c", botas: "#3a3d42", mochila: "#2f5ea6", mangueras: true, parches: true, altura: 1.8, k: 1.0, semilla: 11 },
-  { id: "nadia", nombre: "Nadia Reyes", rol: "Exploradora · Amigos", piel: "#d9a27e", pelo: "#17171b", peinado: "rizos", ojos: "#5a3a22",
+  { id: "nadia", bio: "Exploradora. Conoce cada roca de los planetas y a cada piloto de la estación.", corto: "Nadia", nombre: "Nadia Reyes", rol: "Exploradora · Amigos", piel: "#d9a27e", pelo: "#17171b", peinado: "rizos", ojos: "#5a3a22",
     traje: "#3f7b3c", panel: "#1f3c6e", cuello: "#1f3c6e", detalle: "#1f3c6e", guantes: "#3f7b3c", botas: "#2e5a2c", mochila: "#8f959c", rayas: true, altura: 1.7, k: 0.92, semilla: 22 },
-  { id: "kenji", nombre: "Capitán Kenji Morita", rol: "Comandante · Clanes", piel: "#e3b48e", pelo: "#a9a9a9", peinado: "atras", barba: "corta", ojos: "#3b2a1e",
+  { id: "kenji", bio: "Comandante veterano. Dirige la estación y los clanes con mano firme.", corto: "Kenji", nombre: "Capitán Kenji Morita", rol: "Comandante · Clanes", piel: "#e3b48e", pelo: "#a9a9a9", peinado: "atras", barba: "corta", ojos: "#3b2a1e",
     traje: "#e2721f", panel: "#cf6316", cuello: "#4a4f57", detalle: "#5b6068", guantes: "#5b6068", botas: "#d0681c", mochila: "#e2721f", arnes: "#6b7079", consola: true, altura: 1.76, k: 1.05, semilla: 33 },
-  { id: "bruno", nombre: "Bruno «Llave» Kowalski", rol: "Mecánico del hangar", piel: "#d9a988", pelo: "#4a3222", peinado: "cresta", barba: "larga", ojos: "#4a3020",
+  { id: "bruno", bio: "Mecánico del hangar. Si tiene tornillos, Bruno lo arregla.", corto: "Bruno", nombre: "Bruno «Llave» Kowalski", rol: "Mecánico del hangar", piel: "#d9a988", pelo: "#4a3222", peinado: "cresta", barba: "larga", ojos: "#4a3020",
     traje: "#c0661f", panel: "#2a2c31", cuello: "#2a2c31", detalle: "#2a2c31", guantes: "#c0661f", botas: "#2a2c31", mochila: "#34373d", arnes: "#22242a", herramientas: true, altura: 1.9, k: 1.18, semilla: 44 },
 ];
 
