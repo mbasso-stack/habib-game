@@ -178,7 +178,7 @@ function prepararJugador() {
 // ---------- Interacciones ----------
 const ZONAS = () => [
   ...fijos.map(f => ({ x: f.x, z: f.z, r: 3.2, zona: f.zona, texto: f.texto })),
-  { x: TI.x, z: TI.z - 3.5, r: 4.5, zona: "tienda", texto: "Tienda del robot" }, // delante del mostrador
+  { x: TI.x, z: TI.z - 3.5, r: 4.5, rect: [TI.x - 7.5, TI.x + 6.5, TI.z - 8, TI.z - 1.8], zona: "tienda", texto: "Tienda del robot" }, // todo el frente del mostrador
   { x: HANG.x, z: HANG.z, r: 9, zona: "hangar", texto: "Ver tu nave en el hangar" },
   { x: PAD.x, z: PAD.z, r: 7.5, zona: "despegar", texto: "Despegar" },
 ];
@@ -211,7 +211,11 @@ HG.Estacion = {
     holoPlaneta.rotation.y += dt * 0.6; holo.rotation.y += dt * 0.15;
     // zona más cercana
     zonaCerca = null; let dmin = 1e9;
-    for (const z of ZONAS()) { const d = Math.hypot(z.x - control.pos.x, z.z - control.pos.z); if (d < z.r && d < dmin) { dmin = d; zonaCerca = z; } }
+    for (const z of ZONAS()) {
+      const p = control.pos, dentro = z.rect && p.x > z.rect[0] && p.x < z.rect[1] && p.z > z.rect[2] && p.z < z.rect[3];
+      const d = dentro ? 0 : Math.hypot(z.x - p.x, z.z - p.z);
+      if ((dentro || d < z.r) && d < dmin) { dmin = d; zonaCerca = z; }
+    }
     if (robot && zonaCerca && zonaCerca.zona === "tienda" && saludando <= 0 && accionesRobot.Wave) {
       saludando = 6; const a = accionesRobot.Wave; a.reset(); a.setLoop(T.LoopOnce, 1); a.play(); a.crossFadeFrom(accionesRobot.Idle, 0.2, false);
       setTimeout(() => { accionesRobot.Idle.reset().play(); a.crossFadeTo(accionesRobot.Idle, 0.3, false); }, 2000);
