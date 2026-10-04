@@ -91,9 +91,10 @@ function danarEnemigo(e, d, dueno = true) {
     HG.guardarPartida(); HG.juego.comprobarFinal();
   }
 }
+const BLINDAJE = 0.5; // todas las naves reciben la mitad de daño de disparos, choques y misiles
 function danarJugador(d) {
   if (!N.viva) return;
-  N.hp -= d; HG.ui.golpe(); HG.audio.sfx("golpe");
+  N.hp -= d * BLINDAJE; HG.ui.golpe(); HG.audio.sfx("golpe");
   if (N.hp <= 0) { N.hp = 0; N.viva = false; N.muerteT = 2.5; explotar(N.pos, 3); N.g.visible = false; HG.ui.toast("¡Tu nave ha explotado! Pierdes la carga.", "rojo"); }
 }
 // distancia de un punto al segmento a-b (para que las balas rápidas no atraviesen sin chocar)
