@@ -116,8 +116,9 @@ let nivel = 1, cfg, t = 0, progreso = 0, record = 0;
 try { record = +localStorage.getItem("haluski_record") || 0; } catch (e) {}
 let jugadores = [], balas, enemigos, meteoros, balasEnemigas, particulas, bonus, base, jefe;
 let temporizadorIntro = 0, spawnE = 0, spawnM = 0, sacudida = 0, ultimoBono = 0;
-let armas = { triple: false, misiles: false, pulso: false }, mejoras = { motores: 0, cadencia: 0, blindaje: 0, deposito: 0 };
+let armas = { triple: false, misiles: false, pulso: false }, mejoras = { motores: 0, cadencia: 0, blindaje: 0, deposito: 0, iman: 0, carga: 0, reparador: 0, pico: 0, bateria: 0, botas: 0 };
 let drenaje = 0, combustible = 6, misiles = [], ondas = [], cdPulso = 0, tiendaTab = 0;
+const cargaT = () => [2, 1.6, 1.3, 1.0][mejoras.carga];
 const maxComb = () => 6 + 4 * mejoras.deposito, maxVidas = () => 5 + mejoras.blindaje, CADENCIA = [0.2, 0.17, 0.14, 0.11];
 const CINE_A = 3.2, CINE_B = 3.6, CINE_C = 2.2, CINE_T = CINE_A + CINE_B + CINE_C;
 let cine = 0, exp = null, rocas = [], combustibles = [], cineAterrizo = false;
@@ -156,7 +157,7 @@ function prepararMenu() {
 }
 function iniciarJuego() {
   monedas = 0; colonias = []; bonusColonias = 0; combustible = 6; drenaje = 0;
-  armas = { triple: false, misiles: false, pulso: false }; mejoras = { motores: 0, cadencia: 0, blindaje: 0, deposito: 0 };
+  armas = { triple: false, misiles: false, pulso: false }; mejoras = { motores: 0, cadencia: 0, blindaje: 0, deposito: 0, iman: 0, carga: 0, reparador: 0, pico: 0, bateria: 0, botas: 0 };
   nivel = 1; jugadores = crearJugadores(numJugadores);
   empezarNivel();
 }
@@ -169,6 +170,7 @@ function empezarNivel() {
     if (!p.vivo) { p.vivo = true; p.vidas = 1; } // los caídos vuelven con 1 vida
     p.x = p.spawnX; p.y = H - 80; p.invul = 2; p.cool = 0; p.aterrizado = false;
   }
+  if (nivel > 1 && mejoras.reparador) for (const p of jugadores) p.vidas = Math.min(maxVidas(), p.vidas + mejoras.reparador);
   temporizadorIntro = 2.6; estado = "intro";
 }
 
@@ -326,8 +328,8 @@ function actualizar(dt) {
   }
   if (estado === "tienda") {
     let its = itemsTienda();
-    if (hit("ArrowLeft") || hit("KeyA")) { tiendaTab = (tiendaTab + 2) % 3; tiendaSel = 0; its = itemsTienda(); }
-    if (hit("ArrowRight") || hit("KeyD")) { tiendaTab = (tiendaTab + 1) % 3; tiendaSel = 0; its = itemsTienda(); }
+    if (hit("ArrowLeft") || hit("KeyA")) { tiendaTab = (tiendaTab + 3) % 4; tiendaSel = 0; its = itemsTienda(); }
+    if (hit("ArrowRight") || hit("KeyD")) { tiendaTab = (tiendaTab + 1) % 4; tiendaSel = 0; its = itemsTienda(); }
     const n = Math.max(1, its.length);
     if (hit("ArrowUp") || hit("KeyW")) tiendaSel = (tiendaSel + n - 1) % n;
     if (hit("ArrowDown") || hit("KeyS")) tiendaSel = (tiendaSel + 1) % n;
@@ -357,12 +359,12 @@ function actualizar(dt) {
     const pulsando = puedeDisparar && activo(p, "disp");
     if (pulsando) {
       const antes = p.carga; p.carga += dt;
-      if (antes < 2 && p.carga >= 2) sfx.carga();
+      if (antes < cargaT() && p.carga >= cargaT()) sfx.carga();
     } else {
-      if (puedeDisparar && p.carga >= 2) lanzarRayo(p); // al soltar con la carga completa: ataque cargado
+      if (puedeDisparar && p.carga >= cargaT()) lanzarRayo(p); // al soltar con la carga completa: ataque cargado
       p.carga = 0;
     }
-    if (pulsando && p.carga < 2 && p.cool <= 0) {
+    if (pulsando && p.carga < cargaT() && p.cool <= 0) {
       p.cool = CADENCIA[mejoras.cadencia];
       if (p.doble > 0) balas.push({ x: p.x - 10, y: p.y - 14, r: 3, dueño: p }, { x: p.x + 10, y: p.y - 14, r: 3, dueño: p });
       else balas.push({ x: p.x, y: p.y - 18, r: 3, dueño: p });
@@ -487,7 +489,7 @@ function actualizar(dt) {
   for (const c of monedasSuelo) {
     c.x += c.vx * dt; c.y += c.vy * dt; c.vx *= 0.98;
     const obj = objetivo(c.x, c.y);
-    if (obj) { const d = Math.hypot(obj.x - c.x, obj.y - c.y) || 1; if (d < 110) { c.x += (obj.x - c.x) / d * 220 * dt; c.y += (obj.y - c.y) / d * 220 * dt; } }
+    if (obj) { const d = Math.hypot(obj.x - c.x, obj.y - c.y) || 1; if (d < 110 + 70 * mejoras.iman) { c.x += (obj.x - c.x) / d * 220 * dt; c.y += (obj.y - c.y) / d * 220 * dt; } }
     for (const p of vivos()) if (!c.cogida && choque(c, p)) { c.cogida = true; monedas++; sfx.moneda(); }
   }
   monedasSuelo = monedasSuelo.filter(c => !c.cogida && c.y < H + 20);
@@ -504,7 +506,7 @@ function moverJugador(p, dt) {
   let dx = (activo(p, "der") ? 1 : 0) - (activo(p, "izq") ? 1 : 0), dy = (activo(p, "abj") ? 1 : 0) - (activo(p, "arr") ? 1 : 0);
   if (dx && dy) { dx *= 0.7071; dy *= 0.7071; }
   p.dx = dx; p.dy = dy;
-  const vel = p.vel * (1 + 0.12 * mejoras.motores) * (combustible <= 0 && estado !== "exploracion" ? 0.6 : 1);
+  const vel = estado === "exploracion" ? p.vel * (1 + 0.25 * mejoras.botas) : p.vel * (1 + 0.12 * mejoras.motores) * (combustible <= 0 ? 0.6 : 1);
   p.x = Math.max(45, Math.min(W - 20, p.x + dx * vel * dt));
   const minY = estado === "aterrizando" ? 20 : 120;
   p.y = Math.max(minY, Math.min(H - 30, p.y + dy * vel * dt));
@@ -558,12 +560,13 @@ function iniciarExploracion() {
     if (rocas.some(o => Math.hypot(o.x - x, o.y - y) < o.r + r + 25)) continue;
     rocas.push({ x, y, r, vida, max: vida, tex: v, sac: 0 });
   }
-  exp = { tiempo: 45, msg: "", msgT: 0 };
+  const tmax = 45 + 10 * mejoras.bateria;
+  exp = { tiempo: tmax, max: tmax, msg: "", msgT: 0 };
   for (const p of jugadores) { p.aterrizado = false; p.cool = 0; p.golpe = 0; p.x = p.spawnX; p.y = H - 150; }
   estado = "exploracion";
 }
 function golpearRoca(o, p) {
-  o.vida--; o.sac = 0.2;
+  o.vida -= 1 + mejoras.pico; o.sac = 0.2;
   explosion(o.x, o.y, 6, "#c8b8a0", 120);
   if (o.vida <= 0) {
     explosion(o.x, o.y, 22, "#ffb347", 200); sfx.explosion();
@@ -584,6 +587,11 @@ function finalizarVictoria() {
 }
 function itemsTienda() {
   if (tiendaTab === 0) return colonias.map(c => ({ nombre: c.nombre, nivel: c.prot, max: 3, costes: COSTES, desc: NOMBRES_PROT[c.prot] || "", aplicar: () => { c.prot++; } }));
+  if (tiendaTab === 3) return [
+    { nombre: "Pico reforzado", nivel: mejoras.pico, max: 2, costes: [25, 50], desc: "Rompe las rocas más rápido", aplicar: () => { mejoras.pico++; } },
+    { nombre: "Batería del traje", nivel: mejoras.bateria, max: 3, costes: [20, 35, 55], desc: "+10 s de exploración", aplicar: () => { mejoras.bateria++; } },
+    { nombre: "Botas propulsoras", nivel: mejoras.botas, max: 2, costes: [20, 40], desc: "El astronauta corre más", aplicar: () => { mejoras.botas++; } },
+  ];
   if (tiendaTab === 1) return [
     { nombre: "Disparo triple", nivel: armas.triple ? 1 : 0, max: 1, costes: [60], desc: "Tres disparos en abanico", aplicar: () => { armas.triple = true; } },
     { nombre: "Misiles teledirigidos", nivel: armas.misiles ? 1 : 0, max: 1, costes: [80], desc: "Salen solos · 1 combustible", aplicar: () => { armas.misiles = true; } },
@@ -594,7 +602,10 @@ function itemsTienda() {
     { nombre: "Cadencia", nivel: mejoras.cadencia, max: 3, costes: [25, 45, 75], desc: "Dispara más rápido", aplicar: () => { mejoras.cadencia++; } },
     { nombre: "Blindaje", nivel: mejoras.blindaje, max: 3, costes: [30, 50, 80], desc: "+1 vida y vida máxima", aplicar: () => { mejoras.blindaje++; for (const p of jugadores) p.vidas = Math.min(maxVidas(), p.vidas + 1); } },
     { nombre: "Depósito", nivel: mejoras.deposito, max: 3, costes: [20, 35, 60], desc: "Más combustible", aplicar: () => { mejoras.deposito++; } },
-  ];
+    { nombre: "Carga rápida", nivel: mejoras.carga, max: 3, costes: [30, 50, 80], desc: "El ataque cargado tarda menos", aplicar: () => { mejoras.carga++; } },
+    { nombre: "Reparador", nivel: mejoras.reparador, max: 2, costes: [50, 90], desc: "+1 vida al empezar cada nivel", aplicar: () => { mejoras.reparador++; } },
+    { nombre: "Imán de monedas", nivel: mejoras.iman, max: 3, costes: [20, 35, 55], desc: "Atrae monedas desde más lejos", aplicar: () => { mejoras.iman++; } },
+  ].slice(0, 7).filter(Boolean);
 }
 function comprarItem(it) {
   if (it.nivel >= it.max) return;
@@ -885,7 +896,7 @@ function renderEspacio(dt, ev) {
     m.rotation.y = estado === "menu" ? t * 1.5 : 0;
     m.userData.llamas.forEach(l => l.scale.set(1, 1, 0.8 + Math.random() * 0.6));
     m.userData.escudo.visible = p.escudo > 0;
-    const c = Math.min(1, (p.carga || 0) / 2), cm = m.userData.carga;
+    const c = Math.min(1, (p.carga || 0) / cargaT()), cm = m.userData.carga;
     cm.visible = c > 0.1 && p.vivo;
     cm.scale.setScalar(0.3 + 0.7 * c + (c >= 1 ? 0.12 * Math.sin(t * 25) : 0));
     cm.material.opacity = c >= 1 ? 0.7 : 0.15 + 0.3 * c;
@@ -1035,7 +1046,7 @@ function renderSuperficie(dt, ev) {
   for (const p of vivos()) {
     p.astr = p.astr || {};
     const m = malla(p.astr, () => crearMallaAstronauta(p));
-    m.position.set(X3(p.x), SY, Z3(p.y)); m.scale.setScalar(1.05 * esc); m.visible = esc > 0.01;
+    m.position.set(X3(p.x), SY, Z3(p.y)); m.scale.setScalar(0.7 * esc); m.visible = esc > 0.01;
     const mov = Math.abs(p.dx || 0) + Math.abs(p.dy || 0) > 0 && ev === "exploracion";
     if (mov) m.rotation.y += ang(m.rotation.y, Math.atan2(p.dx, p.dy)) * Math.min(1, dt * 12);
     const paso = mov ? Math.sin(t * 12) * 0.7 : 0;
@@ -1092,7 +1103,7 @@ function bloqueJugador(p, x, align) {
   if (p.escudo) extra += " · ESCUDO";
   if (p.doble > 0) extra += ` · x2 ${Math.ceil(p.doble)}s`;
   texto(extra, x, 27, 12, "#dfe9ff", align);
-  const c = Math.min(1, (p.carga || 0) / 2);
+  const c = Math.min(1, (p.carga || 0) / cargaT());
   if (c > 0) {
     const x0 = align === "left" ? x : x - 100;
     ctx.fillStyle = "#0008"; ctx.fillRect(x0, 33, 100, 4);
@@ -1137,13 +1148,13 @@ function dibujarTienda() {
   texto(`Monedas: ${monedas}`, W / 2 - 136, 88, 20, "#ffcc33", "left");
   ctx.fillStyle = "#ff9a3c"; ctx.beginPath(); ctx.moveTo(W / 2 + 30, 80); ctx.lineTo(W / 2 + 38, 88); ctx.lineTo(W / 2 + 30, 96); ctx.lineTo(W / 2 + 22, 88); ctx.fill();
   texto(`Combustible: ${combustible}/${maxComb()}`, W / 2 + 46, 88, 20, "#ffb066", "left");
-  ["Colonias", "Armas", "Nave"].forEach((nom, i) => {
-    const x = W / 2 + (i - 1) * 180, sel = tiendaTab === i;
+  ["Colonias", "Armas", "Nave", "Traje"].forEach((nom, i) => {
+    const x = W / 2 + (i - 1.5) * 180, sel = tiendaTab === i;
     ctx.fillStyle = sel ? "#2b4bb0" : "#151c40"; ctx.fillRect(x - 80, 118, 160, 34);
     ctx.strokeStyle = sel ? "#ffd166" : "#3a4a94"; ctx.lineWidth = sel ? 3 : 1; ctx.strokeRect(x - 80, 118, 160, 34);
     texto(nom, x, 136, 18, sel ? "#fff" : "#8fa3d9", "center", false);
   });
-  const sub = ["Los enemigos atacarán tus colonias. ¡Compra protección!", "Armas nuevas. Los misiles y la bomba gastan combustible.", "Mejoras permanentes para tu nave (valen para todos)."][tiendaTab];
+  const sub = ["Los enemigos atacarán tus colonias. ¡Compra protección!", "Armas nuevas. Los misiles y la bomba gastan combustible.", "Mejoras permanentes para tu nave (valen para todos).", "Equipo del astronauta para explorar los planetas."][tiendaTab];
   texto(sub, W / 2, 175, 15, "#9bd");
   const its = itemsTienda();
   if (!its.length) texto("Todavía no tienes colonias.", W / 2, 260, 18, "#8fa3d9");
@@ -1179,7 +1190,7 @@ function dibujar() {
   if (estado === "menu") { dibujarMenu(); return; }
 
   // etiquetas sobre los objetos 3D
-  if (jugadores.length > 1 && estado !== "cinematica" && estado !== "tienda" && estado !== "ataque") for (const p of jugadores) if (p.vivo) { const s = proyectar(p.x, p.y, estado === "exploracion" ? 42 : 40); texto(`J${p.id + 1}`, s.x, s.y - 4, 12, p.color, "center", false); }
+  if (jugadores.length > 1 && estado !== "cinematica" && estado !== "tienda" && estado !== "ataque") for (const p of jugadores) if (p.vivo) { const s = proyectar(p.x, p.y, estado === "exploracion" ? 30 : 40); texto(`J${p.id + 1}`, s.x, s.y - 4, 12, p.color, "center", false); }
   for (const o of bonus) {
     const s = proyectar(o.x, o.y, 26);
     texto(o.tipo === "escudo" ? "ESCUDO" : o.tipo === "doble" ? "x2" : "♥", s.x, s.y, 12, "#fff");
@@ -1211,7 +1222,7 @@ function dibujar() {
     texto("ENTER: saltar", W - 14, H - 14, 12, "#8fa3d9", "right", false);
   } else if (estado === "exploracion") {
     texto(`Tiempo: ${Math.max(0, Math.ceil(exp.tiempo))} s`, W / 2, 62, 20, exp.tiempo < 10 ? "#ff7a7a" : "#fff");
-    if (exp.tiempo > 40) texto("¡Rompe las rocas para sacar combustible!", W / 2, 100, 20, "#ffb066");
+    if (exp.tiempo > exp.max - 5) texto("¡Rompe las rocas para sacar combustible!", W / 2, 100, 20, "#ffb066");
     if (exp.msgT > 0) texto(exp.msg, W / 2, 130, 20, "#ff9a9a");
     texto("Mantén el disparo junto a una roca para picarla · El depósito se gasta al volar · R: volver a la nave", W / 2, H - 22, 15, "#dfe9ff");
   } else if (estado === "colonizando") {
@@ -1255,7 +1266,7 @@ window.__haluski = {
   get estado() { return estado; },
   get jugadores() { return jugadores; },
   adelantar() { progreso = 0.999; },
-  get rayos() { return rayos; }, get cine() { return cine; }, get rocas() { return rocas; }, get comb() { return combustible; }, completar() { completarNivel(); }, get armas() { return armas; }, get mejoras() { return mejoras; }, get combustible() { return combustible; }, set combustible(v) { combustible = v; },
+  get rayos() { return rayos; }, irTienda() { tiendaTab = 0; tiendaSel = 0; estado = "tienda"; }, get cine() { return cine; }, get rocas() { return rocas; }, get comb() { return combustible; }, completar() { completarNivel(); }, get armas() { return armas; }, get mejoras() { return mejoras; }, get combustible() { return combustible; }, set combustible(v) { combustible = v; },
   get monedas() { return monedas; }, get colonias() { return colonias; }, dar(n) { monedas += n; },
   iniciar(n, nv = 1) { numJugadores = n; nivel = nv; jugadores = crearJugadores(n); empezarNivel(); estado = "jugando"; },
 };
