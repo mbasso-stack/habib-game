@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Haluski: Misión a la Base</title>
+<title>Haluski: Misión Colonial</title>
 <style>
   html, body { margin: 0; height: 100%; background: #05060f; color: #dfe9ff; font-family: "Trebuchet MS", Verdana, sans-serif; }
   body { display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -67,6 +67,7 @@ function beep(f1, f2, dur, tipo = "square", vol = 0.06) {
 }
 const sfx = {
   disparo: () => beep(900, 300, 0.1, "square", 0.03),
+  moneda: () => beep(1200, 1900, 0.08, "triangle", 0.05),
   explosion: () => beep(220, 40, 0.3, "sawtooth", 0.07),
   golpe: () => beep(300, 60, 0.35, "sawtooth", 0.09),
   bonus: () => { beep(500, 900, 0.12, "triangle", 0.08); setTimeout(() => beep(900, 1400, 0.12, "triangle", 0.08), 90); },
@@ -103,13 +104,15 @@ function configNivel(n) {
 }
 
 // ---------- Estado ----------
-let estado = "menu"; // menu, intro, jugando, pausa, jefe, aterrizando, nivelCompleto, derrota, victoria
+let estado = "menu"; // menu, intro, jugando, pausa, jefe, aterrizando, colonizando, tienda, ataque, derrota, victoria
 let estadoPrevio = "jugando";
 let numJugadores = 1;
 let nivel = 1, cfg, t = 0, progreso = 0, record = 0;
 try { record = +localStorage.getItem("haluski_record") || 0; } catch (e) {}
 let jugadores = [], balas, enemigos, meteoros, balasEnemigas, particulas, bonus, base, jefe;
 let temporizadorIntro = 0, spawnE = 0, spawnM = 0, sacudida = 0, ultimoBono = 0;
+let monedas = 0, monedasSuelo = [], colonias = [], tiendaSel = 0, ataqueLineas = [], tiendaMsg = "", tiendaMsgT = 0, bonusColonias = 0;
+const COSTES = [15, 30, 50], NOMBRES_PROT = ["Escudo orbital", "Torretas láser", "Fortaleza total"];
 
 const NOMBRES = ["Haluski", "Jugador 2"];
 const COLORES = ["#4cc9f0", "#ff9f43"];
@@ -142,13 +145,14 @@ function prepararMenu() {
   balas = []; enemigos = []; meteoros = []; balasEnemigas = []; particulas = []; bonus = []; base = null; jefe = null; nivel = 1; progreso = 0;
 }
 function iniciarJuego() {
+  monedas = 0; colonias = []; bonusColonias = 0;
   nivel = 1; jugadores = crearJugadores(numJugadores);
   empezarNivel();
 }
 function empezarNivel() {
   cfg = configNivel(nivel);
   balas = []; enemigos = []; meteoros = []; balasEnemigas = []; particulas = []; bonus = [];
-  base = null; jefe = null; progreso = 0; spawnE = 1; spawnM = 0.5;
+  base = null; jefe = null; progreso = 0; spawnE = 1; spawnM = 0.5; monedasSuelo = [];
   for (const p of jugadores) {
     if (!p.vivo) { p.vivo = true; p.vidas = 1; } // los caídos vuelven con 1 vida
     p.x = p.spawnX; p.y = H - 80; p.invul = 2; p.cool = 0; p.aterrizado = false;
@@ -192,6 +196,10 @@ function soltarBonus(x, y) {
   const tipos = todosLlenos ? ["escudo", "doble"] : ["escudo", "doble", "vida"];
   bonus.push({ x, y, r: 13, tipo: tipos[rint(0, tipos.length - 1)] });
 }
+function soltarMonedas(e) {
+  const n = e.tipo === "tirador" ? 3 : e.tipo === "zigzag" ? rint(1, 2) : (Math.random() < 0.7 ? 1 : 0);
+  for (let i = 0; i < n; i++) monedasSuelo.push({ x: e.x + rnd(-14, 14), y: e.y + rnd(-10, 10), r: 10, vx: rnd(-30, 30), vy: rnd(60, 110) });
+}
 function dispararEnemigo(x, y, tx, ty, vel = 220) {
   const a = Math.atan2(ty - y, tx - x);
   balasEnemigas.push({ x, y, vx: Math.cos(a) * vel, vy: Math.sin(a) * vel, r: 5 });
@@ -226,14 +234,27 @@ function actualizar(dt) {
   }
   if (estado === "derrota" || estado === "victoria") { if (hit("Enter")) { estado = "menu"; prepararMenu(); } return; }
   if (estado === "pausa") { if (hit("KeyP")) estado = estadoPrevio; return; }
-  if (estado === "nivelCompleto") {
-    temporizadorIntro -= dt;
+  if (tiendaMsgT > 0) tiendaMsgT -= dt;
+  if (estado === "colonizando") {
+    temporizadorIntro -= dt; actualizarParticulas(dt);
     if (temporizadorIntro <= 0 || hit("Enter")) {
-      if (nivel >= TOTAL_NIVELES) { estado = "victoria"; guardarRecord(); }
-      else { nivel++; empezarNivel(); }
+      if (nivel >= TOTAL_NIVELES) finalizarVictoria();
+      else { tiendaSel = colonias.length - 1; estado = "tienda"; }
     }
     return;
   }
+  if (estado === "tienda") {
+    const n = colonias.length;
+    if (hit("ArrowUp") || hit("KeyW") || hit("ArrowLeft") || hit("KeyA")) tiendaSel = (tiendaSel + n - 1) % n;
+    if (hit("ArrowDown") || hit("KeyS") || hit("ArrowRight") || hit("KeyD")) tiendaSel = (tiendaSel + 1) % n;
+    if (hit("Enter")) mejorarColonia(colonias[tiendaSel]);
+    if (hit("Space")) {
+      ataqueLineas = resolverAtaque(nivel + 1);
+      if (ataqueLineas.length) estado = "ataque"; else { nivel++; empezarNivel(); }
+    }
+    return;
+  }
+  if (estado === "ataque") { if (hit("Enter") || hit("Space")) { nivel++; empezarNivel(); } return; }
   if (estado === "intro") {
     temporizadorIntro -= dt;
     if (temporizadorIntro <= 0) estado = "jugando";
@@ -316,7 +337,7 @@ function actualizar(dt) {
   for (const b of balas) {
     for (const e of enemigos) if (!b.muerta && e.vida > 0 && choque(b, e)) {
       b.muerta = true; e.vida--;
-      if (e.vida <= 0) { sumar(b.dueño, e.tipo === "tirador" ? 200 : 100); explosion(e.x, e.y, 18); sfx.explosion(); soltarBonus(e.x, e.y); }
+      if (e.vida <= 0) { sumar(b.dueño, e.tipo === "tirador" ? 200 : 100); explosion(e.x, e.y, 18); sfx.explosion(); soltarBonus(e.x, e.y); soltarMonedas(e); }
       else explosion(b.x, b.y, 4, "#fff", 80);
     }
     for (const m of meteoros) if (!b.muerta && !m.muerto && choque(b, { x: m.x, y: m.y, r: m.r })) {
@@ -345,6 +366,13 @@ function actualizar(dt) {
     }
   }
 
+  for (const c of monedasSuelo) {
+    c.x += c.vx * dt; c.y += c.vy * dt; c.vx *= 0.98;
+    const obj = objetivo(c.x, c.y);
+    if (obj) { const d = Math.hypot(obj.x - c.x, obj.y - c.y) || 1; if (d < 110) { c.x += (obj.x - c.x) / d * 220 * dt; c.y += (obj.y - c.y) / d * 220 * dt; } }
+    for (const p of vivos()) if (!c.cogida && choque(c, p)) { c.cogida = true; monedas++; sfx.moneda(); }
+  }
+  monedasSuelo = monedasSuelo.filter(c => !c.cogida && c.y < H + 20);
   balas = balas.filter(b => !b.muerta);
   enemigos = enemigos.filter(e => e.vida > 0 && e.y < H + 40);
   meteoros = meteoros.filter(m => !m.muerto && m.y < H + 60);
@@ -388,6 +416,7 @@ function actualizarJefe(dt) {
 }
 function jefeDerrotado(dueño) {
   sumar(dueño, jefe.gran ? 3000 : 1000);
+  for (let i = 0; i < (jefe.gran ? 40 : 25); i++) monedasSuelo.push({ x: jefe.x + rnd(-60, 60), y: jefe.y + rnd(-30, 30), r: 10, vx: rnd(-80, 80), vy: rnd(40, 120) });
   for (let i = 0; i < 6; i++) explosion(jefe.x + rnd(-40, 40), jefe.y + rnd(-30, 30), 30, i % 2 ? "#ffb347" : "#ff6a4d", 260);
   sfx.explosion(); balasEnemigas = [];
   jefe = null; base = { x: W / 2, y: -120, w: 260, h: 90 }; estado = "aterrizando";
@@ -395,8 +424,34 @@ function jefeDerrotado(dueño) {
 function completarNivel() {
   ultimoBono = 0;
   for (const p of vivos()) { const b = 500 + p.vidas * 100; p.puntos += b; ultimoBono += b; }
-  sfx.nivel();
-  estado = "nivelCompleto"; temporizadorIntro = 4;
+  monedas += monedasSuelo.length; monedasSuelo = [];
+  colonias.push({ idx: nivel - 1, nombre: PLANETAS[nivel - 1].n, prot: 0 });
+  sfx.nivel(); estado = "colonizando"; temporizadorIntro = 4.5;
+}
+function finalizarVictoria() {
+  bonusColonias = colonias.reduce((s, c) => s + 1000 + 500 * c.prot, 0);
+  const parte = Math.floor(bonusColonias / jugadores.length);
+  for (const p of jugadores) p.puntos += parte;
+  estado = "victoria"; guardarRecord();
+}
+function mejorarColonia(c) {
+  if (c.prot >= 3) return;
+  if (monedas < COSTES[c.prot]) { tiendaMsg = "No tienes suficientes monedas."; tiendaMsgT = 2; return; }
+  monedas -= COSTES[c.prot]; c.prot++; sfx.bonus();
+}
+function resolverAtaque(n) {
+  if (n < 3 || !colonias.length) return [];
+  const poderMax = Math.min(3, 1 + Math.floor(n / 3));
+  const blanco = colonias.filter(() => Math.random() < 0.5);
+  if (!blanco.length) blanco.push(colonias[rint(0, colonias.length - 1)]);
+  const lineas = [];
+  for (const c of blanco) {
+    const poder = rint(1, poderMax);
+    if (c.prot >= poder) lineas.push({ t: `${c.nombre}: la defensa resistió el ataque (fuerza ${poder}).`, c: "#7CFC9A" });
+    else { lineas.push({ t: `${c.nombre}: ¡colonia destruida! (fuerza ${poder}, protección ${c.prot})`, c: "#ff7a7a" }); c.destruida = true; }
+  }
+  colonias = colonias.filter(c => !c.destruida);
+  return lineas;
 }
 
 // ---------- Escena 3D ----------
@@ -410,7 +465,7 @@ const camara = new THREE.PerspectiveCamera(50, W / H, 10, 3000);
 escena.add(new THREE.AmbientLight(0x8890b0, 0.95));
 const sol = new THREE.DirectionalLight(0xffffff, 1.15); sol.position.set(200, 500, 300); escena.add(sol);
 const X3 = x => x - W / 2, Z3 = y => y - H / 2;
-const mat = (c, em = 0x000000, ei = 0) => new THREE.MeshStandardMaterial({ color: c, emissive: em, emissiveIntensity: ei, roughness: 0.5, metalness: 0.3, flatShading: true });
+const mat = (c, em = 0x000000, ei = 0, r = 0.5, m = 0.3, flat = true) => new THREE.MeshStandardMaterial({ color: c, emissive: em, emissiveIntensity: ei, roughness: r, metalness: m, flatShading: flat });
 const matBrillo = c => new THREE.MeshBasicMaterial({ color: c });
 
 const GEO = {
@@ -422,36 +477,99 @@ const GEO = {
   bala: new THREE.BoxGeometry(6, 6, 26),
   balaEn: new THREE.SphereGeometry(6, 10, 8),
   bonus: new THREE.OctahedronGeometry(14),
+  moneda: new THREE.CylinderGeometry(8, 8, 2.4, 18),
   caja: new THREE.BoxGeometry(1, 1, 1),
   jefe: new THREE.OctahedronGeometry(50),
 };
 const MAT_BALA = COLORES.map(c => matBrillo(c));
 const MAT_BALA_EN = matBrillo(0xff6a4d);
+const MAT_MONEDA = mat(0xffc533, 0xffa000, 0.6, 0.3, 0.9, false);
 const MAT_BONUS = { escudo: mat(0x4cc9f0, 0x4cc9f0, 0.8), doble: mat(0xffd166, 0xffd166, 0.8), vida: mat(0xef476f, 0xef476f, 0.8) };
 const COL_ENEMIGO = { tirador: 0xc0392b, zigzag: 0x8e44ad, explorador: 0x27ae60 };
 
+// ---------- Modelos de naves ----------
+function formaGeo(pts, grosor = 2) {
+  const s = new THREE.Shape(); pts.forEach(([x, y], i) => i ? s.lineTo(x, y) : s.moveTo(x, y));
+  const g = new THREE.ExtrudeGeometry(s, { depth: grosor, bevelEnabled: false });
+  g.rotateX(Math.PI / 2); // la forma (x, y) queda en el plano XZ; el grosor hacia abajo
+  return g;
+}
+const espejo = pts => pts.map(([x, y]) => [-x, y]).reverse();
+const vidrio = mat(0x9fd8ff, 0x1a4a7a, 0.7, 0.1, 0.9, false);
+const GJ = {
+  fuselaje: new THREE.CylinderGeometry(2.6, 8, 40, 14).rotateX(-Math.PI / 2),
+  morro: new THREE.ConeGeometry(2.6, 12, 14).rotateX(-Math.PI / 2),
+  alas: formaGeo([[-27, 17], [-27, 11], [-3, -6], [0, -9], [3, -6], [27, 11], [27, 17], [9, 13], [-9, 13]], 2),
+  cola: new THREE.BoxGeometry(1.6, 11, 10),
+  motor: new THREE.CylinderGeometry(3.6, 4.4, 12, 12).rotateX(Math.PI / 2),
+  tobera: new THREE.CylinderGeometry(3, 3.4, 2, 12).rotateX(Math.PI / 2),
+  llama: new THREE.ConeGeometry(2.8, 16, 10).rotateX(Math.PI / 2),
+  cabina: new THREE.SphereGeometry(5, 14, 10),
+  cañon: new THREE.CylinderGeometry(0.8, 0.8, 12, 6).rotateX(Math.PI / 2),
+};
+function añadir(g, geo, m, x, y, z) { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; }
+
+// Caza de Haluski: fuselaje blanco, alas delta con el color del jugador, doble motor
 function crearMallaJugador(p) {
   const g = new THREE.Group();
-  const c = new THREE.Color(p.color);
-  const cuerpo = new THREE.Mesh(GEO.cuerpo, mat(c)); g.add(cuerpo);
-  const ala = new THREE.Mesh(GEO.ala, mat(c.clone().multiplyScalar(0.7))); ala.position.set(0, -2, 12); g.add(ala);
-  const cab = new THREE.Mesh(GEO.cabina, mat(0xffffff, 0xaaddff, 0.6)); cab.scale.set(0.9, 0.7, 1.5); cab.position.set(0, 6, 0); g.add(cab);
-  const llama = new THREE.Mesh(GEO.llama, matBrillo(0xffa040)); llama.position.set(0, 0, 30); g.add(llama);
-  const escudo = new THREE.Mesh(new THREE.SphereGeometry(32, 16, 12), new THREE.MeshBasicMaterial({ color: p.color, transparent: true, opacity: 0.25, wireframe: true }));
+  const casco = mat(0xe3e8f2, 0, 0, 0.35, 0.8, false), acento = mat(p.color, p.color, 0.35, 0.4, 0.6),
+        oscuro = mat(0x2b303c, 0, 0, 0.5, 0.8), metal = mat(0xaab3c4, 0, 0, 0.3, 0.9);
+  añadir(g, GJ.fuselaje, casco, 0, 0, 2); añadir(g, GJ.morro, casco, 0, 0, -24);
+  añadir(g, GJ.alas, acento, 0, -2, 2);
+  añadir(g, GJ.cabina, vidrio, 0, 5, -7).scale.set(0.75, 0.55, 1.8);
+  for (const s of [-1, 1]) {
+    añadir(g, GJ.cola, acento, s * 7, 7, 15).rotation.z = s * 0.35;
+    añadir(g, GJ.motor, oscuro, s * 6.5, 0, 18); añadir(g, GJ.tobera, metal, s * 6.5, 0, 24.5);
+    añadir(g, GJ.cañon, metal, s * 17, -3, -2);
+  }
+  const llamas = [-1, 1].map(s => añadir(g, GJ.llama, matBrillo(0x8fe0ff), s * 6.5, 0, 33));
+  const escudo = new THREE.Mesh(new THREE.SphereGeometry(34, 16, 12), new THREE.MeshBasicMaterial({ color: p.color, transparent: true, opacity: 0.25, wireframe: true }));
   escudo.visible = false; g.add(escudo);
-  g.userData = { llama, escudo };
-  g.scale.setScalar(1.45);
+  g.userData = { llamas, escudo };
+  g.scale.setScalar(1.35);
   return g;
 }
+
+// Enemigos: cada tipo tiene una silueta distinta a la nave de Haluski
+const GE = {
+  disco: new THREE.SphereGeometry(14, 20, 12), aro: new THREE.TorusGeometry(16, 2.2, 8, 30).rotateX(Math.PI / 2),
+  domo: new THREE.SphereGeometry(7, 14, 10), luz: new THREE.SphereGeometry(1.8, 6, 5),
+  dardo: new THREE.OctahedronGeometry(9), pico: new THREE.ConeGeometry(2.5, 16, 6).rotateX(Math.PI / 2),
+  cuchilla: formaGeo([[-4, 8], [-6, -4], [-38, -20], [-30, -2], [-12, 10]], 2),
+  cuchillaD: formaGeo(espejo([[-4, 8], [-6, -4], [-38, -20], [-30, -2], [-12, 10]]), 2),
+  casco: new THREE.BoxGeometry(30, 9, 34), placa: new THREE.BoxGeometry(20, 5, 22),
+  cuña: formaGeo([[-15, -17], [15, -17], [9, -27], [-9, -27]], 9),
+  cañon: new THREE.CylinderGeometry(2.4, 2.8, 32, 10).rotateX(Math.PI / 2), vaina: new THREE.BoxGeometry(8, 7, 18),
+  brillo: new THREE.SphereGeometry(3, 8, 6),
+};
 function crearMallaEnemigo(e) {
-  const g = new THREE.Group();
-  const col = COL_ENEMIGO[e.tipo];
-  g.add(new THREE.Mesh(GEO.cuerpoEn, mat(col)));
-  const ala = new THREE.Mesh(GEO.ala, mat(new THREE.Color(col).multiplyScalar(0.7))); ala.position.set(0, -2, -10); ala.scale.set(1.1, 1, 1); g.add(ala);
-  const ojo = new THREE.Mesh(GEO.cabina, mat(0xffe066, 0xffe066, 0.9)); ojo.position.set(0, 6, 4); g.add(ojo);
-  g.scale.setScalar(e.tipo === "tirador" ? 1.65 : 1.45);
+  const g = new THREE.Group(), m = new THREE.Group(); // m: modelo con el morro hacia -Z; se gira para mirar a Haluski
+  m.rotation.y = Math.PI; g.add(m);
+  if (e.tipo === "explorador") { // platillo alienígena
+    const giro = new THREE.Group(); m.add(giro);
+    añadir(m, GE.disco, mat(0x3f9a50, 0x16401e, 0.5, 0.4, 0.7, false), 0, 0, 0).scale.set(1.5, 0.4, 1.5);
+    añadir(giro, GE.aro, mat(0x9dff6a, 0x6fe03a, 0.9), 0, 0, 0);
+    for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283; añadir(giro, GE.luz, matBrillo(0xff4040), Math.cos(a) * 16, 0, Math.sin(a) * 16); }
+    añadir(m, GE.domo, mat(0xffe066, 0xffe066, 0.9), 0, 4, 0).scale.set(1, 0.8, 1);
+    g.userData = { giro };
+  } else if (e.tipo === "zigzag") { // dardo con cuchillas
+    const cuerpo = mat(0x8a45c8, 0x2a0f45, 0.5, 0.35, 0.8), cuch = mat(0xc03ad8, 0x8a1fb0, 0.55, 0.3, 0.7);
+    añadir(m, GE.dardo, cuerpo, 0, 0, 0).scale.set(0.9, 0.5, 2.4);
+    añadir(m, GE.cuchilla, cuch, 0, -1, 0); añadir(m, GE.cuchillaD, cuch, 0, -1, 0);
+    añadir(m, GE.pico, cuerpo, 0, 0, 20); añadir(m, GE.brillo, matBrillo(0x66f0ff), 0, 1, 12);
+  } else { // cañonera pesada
+    const rojo = mat(0xa32424, 0x400808, 0.5, 0.45, 0.8), oscuro = mat(0x5a1818, 0x200404, 0.4, 0.5, 0.8), hierro = mat(0x6a707c, 0, 0, 0.4, 0.9);
+    añadir(m, GE.casco, rojo, 0, 0, 0); añadir(m, GE.placa, oscuro, 0, 6, 2); añadir(m, GE.cuña, rojo, 0, -4, 0);
+    for (const s of [-1, 1]) {
+      añadir(m, GE.cañon, hierro, s * 11, 1, -26); añadir(m, GE.brillo, matBrillo(0xffa040), s * 11, 1, -42);
+      añadir(m, GE.vaina, oscuro, s * 21, 0, 10); añadir(m, GE.brillo, matBrillo(0xff8040), s * 21, 0, 20);
+    }
+    añadir(m, GE.brillo, mat(0xff3030, 0xff2020, 1), 0, 9, -6);
+  }
+  g.scale.setScalar(e.tipo === "tirador" ? 1.3 : 1.2);
   return g;
 }
+
 function crearMallaMeteoro(m) {
   const geo = new THREE.IcosahedronGeometry(1, 1);
   const pos = geo.attributes.position;
@@ -461,18 +579,47 @@ function crearMallaMeteoro(m) {
   mesh.userData.liberar = () => geo.dispose();
   return mesh;
 }
-function crearMallaBase() {
-  const g = new THREE.Group();
-  const placa = new THREE.Mesh(GEO.caja, mat(0x3a4a8a)); placa.scale.set(260, 30, 90); g.add(placa);
-  const techo = new THREE.Mesh(GEO.caja, mat(0x56a0ff, 0x56a0ff, 0.4)); techo.scale.set(260, 4, 90); techo.position.y = 17; g.add(techo);
-  const hangar = new THREE.Mesh(GEO.caja, mat(0x222233)); hangar.scale.set(120, 6, 40); hangar.position.set(0, 18, 20); g.add(hangar);
-  const antena = new THREE.Mesh(GEO.caja, mat(0x8888aa)); antena.scale.set(8, 70, 8); antena.position.set(0, 50, -25); g.add(antena);
-  const luz = new THREE.Mesh(new THREE.SphereGeometry(8, 10, 8), matBrillo(0xff5555)); luz.position.set(0, 90, -25); g.add(luz);
-  const luces = [];
-  for (let i = -3; i <= 3; i++) { const l = new THREE.Mesh(GEO.caja, mat(0xffe066, 0xffe066, 1)); l.scale.set(12, 4, 6); l.position.set(i * 36, 20, 38); g.add(l); luces.push(l); }
-  g.userData = { luz, luces };
+// ---------- Planetas ----------
+const PLANETAS = [
+  { n: "Aurora", base: "#2a6fb0", tierra: "#3f9b4a", nubes: 0.35, atm: 0x66aaff },
+  { n: "Duna", base: "#b8793a", tierra: "#e0b070", nubes: 0.1, atm: 0xffaa66 },
+  { n: "Glacia", base: "#a9d6ea", tierra: "#ffffff", nubes: 0.3, atm: 0xcceeff },
+  { n: "Ígnea", base: "#2b0f08", tierra: "#ff5a1a", nubes: 0, atm: 0xff6633 },
+  { n: "Oasis", base: "#1f8a7a", tierra: "#d9c36a", nubes: 0.3, atm: 0x66ffd0 },
+  { n: "Titania", base: "#7a5ca8", tierra: "#c9a8f0", nubes: 0.4, atm: 0xcc99ff },
+  { n: "Coral", base: "#c4506a", tierra: "#ffb0a0", nubes: 0.25, atm: 0xff88aa },
+  { n: "Vesta", base: "#6e7480", tierra: "#a9b0bd", nubes: 0, atm: 0x99aabb },
+  { n: "Ónix", base: "#1c2233", tierra: "#4a90d9", nubes: 0.2, atm: 0x4488ff },
+  { n: "Hogar", base: "#1f6fc0", tierra: "#58b84a", nubes: 0.4, atm: 0x77bbff },
+];
+const TEX = {};
+function texturaPlaneta(i) {
+  if (TEX[i]) return TEX[i];
+  const P = PLANETAS[i], el = document.createElement("canvas"); el.width = 512; el.height = 256;
+  const c = el.getContext("2d");
+  c.fillStyle = P.base; c.fillRect(0, 0, 512, 256);
+  for (let k = 0; k < 70; k++) { c.fillStyle = P.tierra; c.globalAlpha = rnd(0.5, 0.9); c.beginPath(); c.ellipse(rnd(0, 512), rnd(20, 236), rnd(15, 60), rnd(8, 30), rnd(0, 3), 0, 6.283); c.fill(); }
+  c.globalAlpha = 1;
+  for (let k = 0; k < 26; k++) { c.fillStyle = `rgba(255,255,255,${P.nubes * rnd(0.2, 0.6)})`; c.beginPath(); c.ellipse(rnd(0, 512), rnd(10, 246), rnd(30, 90), rnd(3, 9), 0, 0, 6.283); c.fill(); }
+  return TEX[i] = new THREE.CanvasTexture(el);
+}
+const R_PLANETA = 185;
+function crearMallaPlaneta(b) {
+  const idx = b.idx ?? nivel - 1, P = PLANETAS[idx], g = new THREE.Group();
+  const esfera = new THREE.Mesh(new THREE.SphereGeometry(R_PLANETA, 40, 28), new THREE.MeshStandardMaterial({ map: texturaPlaneta(idx), roughness: 0.9, metalness: 0 }));
+  const atm = new THREE.Mesh(new THREE.SphereGeometry(R_PLANETA * 1.07, 32, 20), new THREE.MeshBasicMaterial({ color: P.atm, transparent: true, opacity: 0.22, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+  g.add(esfera, atm);
+  // luces de la colonia sobre la cara visible del planeta
+  const luces = [], geoLuz = new THREE.SphereGeometry(2.4, 6, 4), matLuz = matBrillo(0xffe9a0);
+  while (luces.length < 70) {
+    const d = new THREE.Vector3(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize();
+    if (d.y < 0.2 || d.z < -0.3) continue;
+    const l = new THREE.Mesh(geoLuz, matLuz); l.position.copy(d).multiplyScalar(R_PLANETA * 1.005); l.visible = false; g.add(l); luces.push(l);
+  }
+  g.userData = { esfera, luces };
   return g;
 }
+
 function crearMallaJefe(j) {
   const g = new THREE.Group();
   const col = j.gran ? 0x7a1f3d : 0x5b3a8a;
@@ -535,11 +682,12 @@ function render3D(dt) {
     m.visible = p.vivo && !(p.invul > 0 && Math.floor(t * 14) % 2);
     m.rotation.z += ((-(p.dx || 0) * 0.45) - m.rotation.z) * Math.min(1, dt * 10);
     m.rotation.y = estado === "menu" ? t * 1.5 : 0;
-    m.userData.llama.scale.set(1, 1, 0.8 + Math.random() * 0.6);
+    m.userData.llamas.forEach(l => l.scale.set(1, 1, 0.8 + Math.random() * 0.6));
     m.userData.escudo.visible = p.escudo > 0;
   }
   for (const e of enemigos) {
     const m = malla(e, crearMallaEnemigo); m.position.set(X3(e.x), 0, Z3(e.y)); m.rotation.z = Math.sin(e.fase) * 0.3;
+    if (m.userData.giro) m.userData.giro.rotation.y = t * 2;
   }
   for (const o of meteoros) {
     const m = malla(o, crearMallaMeteoro); m.position.set(X3(o.x), 0, Z3(o.y)); m.scale.setScalar(o.r); m.rotation.set(o.rot, o.rot * 0.7, 0);
@@ -553,10 +701,15 @@ function render3D(dt) {
   for (const o of bonus) {
     const m = malla(o, () => new THREE.Mesh(GEO.bonus, MAT_BONUS[o.tipo])); m.position.set(X3(o.x), 6, Z3(o.y)); m.rotation.y = t * 3;
   }
-  if (base) {
-    const m = malla(base, crearMallaBase); m.position.set(X3(base.x), 0, Z3(base.y + base.h / 2));
-    m.userData.luz.visible = Math.sin(t * 6) > 0;
-    m.userData.luces.forEach((l, i) => { l.material.emissiveIntensity = (Math.floor(t * 3) + i) % 2 ? 1 : 0.1; });
+  for (const c of monedasSuelo) {
+    const m = malla(c, () => new THREE.Mesh(GEO.moneda, MAT_MONEDA)); m.position.set(X3(c.x), 5, Z3(c.y)); m.rotation.set(t * 6 + c.x, 0, 0.3);
+  }
+  if (base && estado !== "tienda" && estado !== "ataque") {
+    const m = malla(base, crearMallaPlaneta); m.position.set(X3(base.x), -R_PLANETA - 8, Z3(base.y + base.h / 2));
+    m.userData.esfera.rotation.y += dt * 0.08;
+    const f = estado === "colonizando" ? Math.min(1, Math.max(0, 1 - temporizadorIntro / 4.5)) : 0;
+    const n = Math.floor(m.userData.luces.length * Math.max(0, (f - 0.25) / 0.75));
+    m.userData.luces.forEach((l, i) => { l.visible = i < n; });
   }
   if (jefe) {
     const m = malla(jefe, crearMallaJefe); m.position.set(X3(jefe.x), 0, Z3(jefe.y)); m.rotation.z = Math.sin(t * 2) * 0.12;
@@ -599,7 +752,9 @@ function bloqueJugador(p, x, align) {
 function dibujarHUD() {
   ctx.fillStyle = "#0007"; ctx.fillRect(0, 0, W, 38);
   texto(`Nivel ${nivel}/${TOTAL_NIVELES}`, W / 2, 11, 14, "#9bd");
-  texto(`Total: ${totalPuntos()}`, W / 2, 27, 12, "#fff");
+  texto(`Total: ${totalPuntos()}`, W / 2 - 8, 27, 12, "#fff", "right");
+  ctx.fillStyle = "#ffcc33"; ctx.beginPath(); ctx.arc(W / 2 + 14, 27, 5, 0, 6.283); ctx.fill();
+  texto(`${monedas}`, W / 2 + 24, 27, 12, "#ffd166", "left");
   bloqueJugador(jugadores[0], 12, "left");
   if (jugadores[1]) bloqueJugador(jugadores[1], W - 12, "right");
   // barra de progreso hacia la base
@@ -607,7 +762,7 @@ function dibujarHUD() {
   ctx.fillStyle = "#0007"; ctx.fillRect(bx, by, bw, bh);
   ctx.fillStyle = "#3d7bff"; ctx.fillRect(bx, by + bh * (1 - progreso), bw, bh * progreso);
   ctx.strokeStyle = "#9bd"; ctx.lineWidth = 1; ctx.strokeRect(bx, by, bw, bh);
-  texto("BASE", bx + 7, by - 6, 9, "#9bd", "center", false);
+  texto("PLANETA", bx + 7, by - 6, 8, "#9bd", "center", false);
   const py = by + bh * (1 - progreso);
   ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.moveTo(bx + 20, py); ctx.lineTo(bx + 30, py - 5); ctx.lineTo(bx + 30, py + 5); ctx.fill();
 }
@@ -623,10 +778,28 @@ function lineasPuntos() {
   return jugadores.map(p => `${p.nombre}: ${p.puntos} puntos`);
 }
 
+function dibujarTienda() {
+  ctx.fillStyle = "#050818ee"; ctx.fillRect(0, 0, W, H);
+  texto("PUERTO COLONIAL", W / 2, 70, 32, "#ffd166");
+  ctx.fillStyle = "#ffcc33"; ctx.beginPath(); ctx.arc(W / 2 - 62, 108, 7, 0, 6.283); ctx.fill();
+  texto(`Monedas: ${monedas}`, W / 2 - 46, 108, 22, "#ffcc33", "left");
+  texto("Los enemigos atacarán tus colonias. ¡Compra protección!", W / 2, 142, 16, "#9bd");
+  colonias.forEach((c, i) => {
+    const y = 185 + i * 32, sel = i === tiendaSel;
+    if (sel) { ctx.fillStyle = "#2b4bb066"; ctx.fillRect(70, y - 15, W - 140, 30); ctx.strokeStyle = "#ffd166"; ctx.lineWidth = 2; ctx.strokeRect(70, y - 15, W - 140, 30); }
+    texto(c.nombre, 90, y, 17, sel ? "#fff" : "#9bd", "left", false);
+    for (let k = 0; k < 3; k++) { ctx.fillStyle = k < c.prot ? "#4cc9f0" : "#26305f"; ctx.beginPath(); ctx.arc(250 + k * 24, y, 8, 0, 6.283); ctx.fill(); }
+    const sig = c.prot < 3 ? `${NOMBRES_PROT[c.prot]} · ${COSTES[c.prot]} monedas` : "Protección máxima";
+    texto(sig, W - 90, y, 15, c.prot < 3 && monedas >= COSTES[c.prot] ? "#7CFC9A" : "#8fa3d9", "right", false);
+  });
+  if (tiendaMsgT > 0) texto(tiendaMsg, W / 2, 520, 17, "#ff9a9a");
+  texto("↑ ↓ elegir colonia  ·  ENTER mejorar protección  ·  ESPACIO continuar", W / 2, 565, 16, "#dfe9ff");
+}
+
 function dibujarMenu() {
   texto("HALUSKI", W / 2, 90, 72, "#ffd166");
-  texto("Misión a la Base", W / 2, 150, 34, "#9bd");
-  ["Dispara a las naves enemigas,", "esquiva los meteoritos", `y llega a la base en ${TOTAL_NIVELES} niveles.`].forEach((l, i) => texto(l, W / 2, 360 + i * 26, 19, "#dfe9ff"));
+  texto("Misión Colonial", W / 2, 150, 34, "#9bd");
+  ["Dispara a las naves enemigas,", "esquiva los meteoritos", `y coloniza ${TOTAL_NIVELES} planetas. ¡Protégelos!`].forEach((l, i) => texto(l, W / 2, 360 + i * 26, 19, "#dfe9ff"));
   [1, 2].forEach(n => {
     const x = W / 2 + (n === 1 ? -120 : 120), sel = numJugadores === n;
     ctx.fillStyle = sel ? "#2b4bb0" : "#151c40"; ctx.fillRect(x - 100, 448, 200, 40);
@@ -648,7 +821,7 @@ function dibujar() {
     const s = proyectar(o.x, o.y, 26);
     texto(o.tipo === "escudo" ? "ESCUDO" : o.tipo === "doble" ? "x2" : "♥", s.x, s.y, 12, "#fff");
   }
-  if (base) { const s = proyectar(base.x, base.y + base.h / 2, 30); texto("BASE", s.x, s.y, 24, "#fff"); }
+  if (base && (estado === "aterrizando" || estado === "colonizando")) { const q = proyectar(base.x, base.y + base.h / 2 + R_PLANETA + 10, 0); texto(PLANETAS[base.idx ?? nivel - 1].n.toUpperCase(), q.x, q.y, 22, "#fff"); }
 
   dibujarHUD();
   if (jefe) dibujarBarraJefe(jefe);
@@ -656,19 +829,29 @@ function dibujar() {
   if (estado === "intro") {
     texto(`NIVEL ${nivel}`, W / 2, 230, 56, "#ffd166");
     texto(cfg.nombre, W / 2, 290, 30, "#fff");
-    texto(cfg.jefe ? "¡Cuidado: un jefe te espera!" : (numJugadores === 2 ? "¡Llegad a la base!" : "¡Llega a la base!"), W / 2, 335, 20, "#9bd");
+    texto(cfg.jefe ? "¡Cuidado: un jefe te espera!" : (numJugadores === 2 ? `¡Llegad al planeta ${PLANETAS[nivel - 1].n}!` : `¡Llega al planeta ${PLANETAS[nivel - 1].n}!`), W / 2, 335, 20, "#9bd");
   } else if (estado === "aterrizando") {
-    texto(base.y < 70 ? "¡La base se acerca!" : (numJugadores === 2 ? "¡Volad hasta la base los dos!" : "¡Vuela hasta la base!"), W / 2, 300, 26, "#7CFC9A");
+    texto(base.y < 70 ? "¡Un planeta a la vista!" : (numJugadores === 2 ? "¡Volad hasta el planeta los dos!" : "¡Vuela hasta el planeta!"), W / 2, 300, 26, "#7CFC9A");
   } else if (estado === "pausa") {
     panel("PAUSA", ["Pulsa P para continuar"], "");
-  } else if (estado === "nivelCompleto") {
-    const lineas = [numJugadores === 2 ? "Habéis llegado a la base." : "Has llegado a la base.", `Bonificación: +${ultimoBono} puntos`, ...lineasPuntos(), `Puntos totales: ${totalPuntos()}`];
-    if (jugadores.some(p => !p.vivo)) lineas.push("Los compañeros caídos vuelven con 1 vida.");
-    panel("¡NIVEL SUPERADO!", lineas, nivel >= TOTAL_NIVELES ? "Pulsa ENTER para continuar" : "Pulsa ENTER para el siguiente nivel");
+  } else if (estado === "colonizando") {
+    const f = 1 - temporizadorIntro / 4.5, nom = PLANETAS[nivel - 1].n;
+    texto(f < 0.4 ? `Aterrizando en ${nom}...` : `¡Colonia fundada en ${nom}!`, W / 2, 400, 30, "#7CFC9A");
+    texto(`+${ultimoBono} puntos`, W / 2, 440, 20, "#ffd166");
+    if (f > 0.6) texto("Pulsa ENTER para continuar", W / 2, 480, 18, "#dfe9ff");
+  } else if (estado === "tienda") {
+    dibujarTienda();
+  } else if (estado === "ataque") {
+    ctx.fillStyle = "#050818e6"; ctx.fillRect(0, 0, W, H);
+    texto("¡ATAQUE ENEMIGO!", W / 2, 150, 46, "#ff7a7a");
+    texto("Una flota enemiga ataca vuestras colonias...", W / 2, 205, 20, "#dfe9ff");
+    ataqueLineas.forEach((l, i) => texto(l.t, W / 2, 265 + i * 30, 18, l.c));
+    texto(colonias.length ? `Colonias que siguen en pie: ${colonias.length}` : "Ya no os queda ninguna colonia.", W / 2, 285 + ataqueLineas.length * 30 + 20, 18, "#9bd");
+    texto("Pulsa ENTER para continuar", W / 2, 520, 20, Math.sin(t * 5) > -0.3 ? "#7CFC9A" : "#4a8");
   } else if (estado === "derrota") {
-    panel("FIN DEL JUEGO", [numJugadores === 2 ? `Vuestra misión ha terminado en el nivel ${nivel}.` : `Haluski ha caído en el nivel ${nivel}.`, ...lineasPuntos(), `Puntos totales: ${totalPuntos()}`, `Récord: ${record}`], "Pulsa ENTER para volver al menú");
+    panel("FIN DEL JUEGO", [numJugadores === 2 ? `Vuestra misión ha terminado en el nivel ${nivel}.` : `Haluski ha caído en el nivel ${nivel}.`, ...lineasPuntos(), `Colonias fundadas: ${colonias.length}`, `Puntos totales: ${totalPuntos()}`, `Récord: ${record}`], "Pulsa ENTER para volver al menú");
   } else if (estado === "victoria") {
-    panel("¡VICTORIA!", [numJugadores === 2 ? "Habéis derrotado al Comandante Zorg" : "Haluski ha derrotado al Comandante Zorg", `y completado los ${TOTAL_NIVELES} niveles.`, ...lineasPuntos(), `Puntos finales: ${totalPuntos()}`, `Récord: ${record}`], "Pulsa ENTER para volver al menú");
+    panel("¡VICTORIA!", [numJugadores === 2 ? "Habéis derrotado al Comandante Zorg" : "Haluski ha derrotado al Comandante Zorg", `y colonizado ${TOTAL_NIVELES} planetas.`, `Colonias a salvo: ${colonias.length} (bonus +${bonusColonias})`, ...lineasPuntos(), `Puntos finales: ${totalPuntos()}`, `Récord: ${record}`], "Pulsa ENTER para volver al menú");
   }
 }
 
@@ -684,8 +867,7 @@ function bucle(ahora) {
   dibujar();
   requestAnimationFrame(bucle);
 }
-jugadores = crearJugadores(1); cfg = configNivel(1);
-balas = []; enemigos = []; meteoros = []; balasEnemigas = []; particulas = []; bonus = [];
+cfg = configNivel(1); prepararMenu();
 requestAnimationFrame(bucle);
 
 // Gancho para pruebas
@@ -693,6 +875,7 @@ window.__haluski = {
   get estado() { return estado; },
   get jugadores() { return jugadores; },
   adelantar() { progreso = 0.999; },
+  get monedas() { return monedas; }, get colonias() { return colonias; }, dar(n) { monedas += n; },
   iniciar(n, nv = 1) { numJugadores = n; nivel = nv; jugadores = crearJugadores(n); empezarNivel(); estado = "jugando"; },
 };
 })();
