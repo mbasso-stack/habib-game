@@ -4,7 +4,7 @@ Juego de naves en 3D para el navegador, en español.
 
 ## Fase 1 (sin conexión)
 - **Estación (lobby) en tercera persona:** camina por el hangar, habla con Bruno (hangar de naves), el robot (tienda), Nadia (amigos) y Kenji (clanes). Despega desde la plataforma.
-- **10 naves** que mejoran con el precio (de 1.000 a 800.000 monedas), con mejoras de Movimiento, Combate y Aspecto (5 niveles cada una).
+- **4 naves** (modelos 3D de Malik) que mejoran con el precio (de 1.000 a 800.000 monedas), con mejoras de Movimiento, Combate y Aspecto (5 niveles cada una).
 - **Vuelo 3D** con piratas, jefes, asteroides y 7 armas: láser, gatling, misiles, minas, plasma cargado, railgun y bomba de pulso.
 - **5 planetas** (Aurora, Duna, Glacia, Ígnea y Ónix) con 2 minerales cada uno para picar y vender. Derrota al jefe y planta tu bandera para conquistarlo.
 - **Supervivencia:** vida de la nave (si explota, pierdes la carga) y barra de comida (se compra en la tienda).

@@ -288,9 +288,18 @@ HG.aplicarAjustes = () => {
 };
 HG.partidaNueva = () => ({
   version: 1, monedas: 1000, comida: 100, naves: {}, naveActiva: -1, armas: ["laser"], equipadas: ["laser"],
-  carga: {}, planetas: {}, derrotas: 0, amigos: [], clan: null, videos: {}, creditosVistos: false, vidaNave: null,
+  carga: {}, planetas: {}, derrotas: 0, amigos: [], clan: null, videos: {}, creditosVistos: false, vidaNave: null, flota: 2,
 });
-HG.cargarPartida = () => { try { const d = JSON.parse(localStorage.getItem("haluski_partida")); if (d && d.vidaNave != null && d.vidaNave <= 0) d.vidaNave = null; return d && d.version === 1 ? Object.assign(HG.partidaNueva(), d) : null; } catch (e) { return null; } };
+// Las 10 naves antiguas pasan a las 4 actuales: 0-1 → Gorrión, 2-5 → Lince, 6-8 → Fénix, 9 → Haluski Prime
+const flotaNueva = i => i <= 1 ? 0 : i <= 5 ? 1 : i <= 8 ? 2 : 3;
+function migrarFlota(d) {
+  if (d.flota === 2) return d;
+  const n = {}; for (const [k, v] of Object.entries(d.naves || {})) { const j = flotaNueva(+k), o = n[j]; n[j] = !o ? v : { mov: Math.max(o.mov, v.mov), com: Math.max(o.com, v.com), asp: Math.max(o.asp, v.asp), color: v.color || o.color }; }
+  d.naves = n; d.flota = 2;
+  if (d.naveActiva >= 0) { d.naveActiva = flotaNueva(d.naveActiva); d.vidaNave = null; }
+  return d;
+}
+HG.cargarPartida = () => { try { const d = JSON.parse(localStorage.getItem("haluski_partida")); if (d && d.vidaNave != null && d.vidaNave <= 0) d.vidaNave = null; return d && d.version === 1 ? migrarFlota(Object.assign(HG.partidaNueva(), d)) : null; } catch (e) { return null; } };
 HG.guardarPartida = () => { try { localStorage.setItem("haluski_partida", JSON.stringify(HG.P)); } catch (e) {} };
 
 // ---------- Sonido ----------

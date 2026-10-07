@@ -68,7 +68,7 @@ function pintar() {
   const P = HG.P, t = panelTipo;
   let h = "";
   if (t === "hangar") {
-    const n = HG.NAVES[sel], d = P.naves[sel], mx = HG.NAVES[9];
+    const n = HG.NAVES[sel], d = P.naves[sel], mx = HG.NAVES[HG.NAVES.length - 1];
     h += cabecera("HANGAR", "Compra, mejora y equipa tus naves", "Bruno «Llave» Kowalski · Mecánico");
     h += `<div class="dos"><div class="lista">${HG.NAVES.map((nv, i) => `<button class="fila ${i === sel ? "sel" : ""}" data-acc="selNave" data-i="${i}"><b>${i + 1}. ${nv.nombre}</b><span>${P.naves[i] ? (P.naveActiva === i ? "EN USO" : "TUYA") : fmt(nv.precio) + " ●"}</span></button>`).join("")}</div><div class="detalle">`;
     h += `<h3>${n.nombre}</h3><div class="stats">

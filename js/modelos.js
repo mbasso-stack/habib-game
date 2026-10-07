@@ -3,89 +3,65 @@
 (function () {
 const HG = window.HG, T = THREE, M = HG.malla;
 
-// ---------- Naves del jugador (diseño de la imagen de Malik: casco blanco blindado) ----------
-function aletaGeo() {
-  const sh = new T.Shape(); [[6, 0], [-8, 0], [-14, 24], [-6, 24]].forEach(([x, y], i) => i ? sh.lineTo(x, y) : sh.moveTo(x, y));
-  const g = new T.ExtrudeGeometry(sh, { depth: 1.8, bevelEnabled: false }); g.translate(0, 0, -0.9); g.rotateY(Math.PI / 2); return g;
+// ---------- Naves del jugador (modelos 3D de Malik: modelos/naves/<id>.bin, largo 1, morro hacia -Z) ----------
+// Se descargan al arrancar; la nave se monta al instante si ya están y, si no, aparece en cuanto llegan.
+const navesMalla = {}, navesEsperas = {}, navesGeo = {};
+function cargarNave(id) {
+  if (navesMalla[id]) return Promise.resolve(navesMalla[id]);
+  return navesEsperas[id] || (navesEsperas[id] = fetch(`modelos/naves/${id}.bin`).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(b => navesMalla[id] = HG.Mallas.leer(b)));
 }
-const ALA = [[-18, 10], [-36, 26], [-30, 31], [-18, 28]], CANARD = [[-9, -14], [-20, -4], [-17, -1], [-9, -5]];
-const GN = {
-  casco: HG.formaGeo([[-3, -38], [3, -38], [10, -20], [16, 0], [20, 14], [18, 30], [-18, 30], [-20, 14], [-16, 0], [-10, -20]], 10),
-  lomo: HG.formaGeo([[-2, -30], [2, -30], [6, -10], [8, 6], [-8, 6], [-6, -10]], 5),
-  ala: HG.formaGeo(ALA, 1.6), alaD: HG.formaGeo(HG.espejo(ALA), 1.6), canard: HG.formaGeo(CANARD, 1.2), canardD: HG.formaGeo(HG.espejo(CANARD), 1.2),
-  aleta: aletaGeo(), bloque: new T.BoxGeometry(28, 13, 16), rejilla: new T.BoxGeometry(2, 5, 12), franja: new T.BoxGeometry(1.6, 0.8, 22),
-  neon: new T.BoxGeometry(0.6, 0.6, 30), cabina: new T.SphereGeometry(5, 16, 12), cabeza: new T.SphereGeometry(2.1, 10, 8), luz: new T.SphereGeometry(1.2, 6, 5),
-  canon: new T.CylinderGeometry(1.4, 1.4, 20, 8).rotateX(Math.PI / 2), motor: new T.CylinderGeometry(5.5, 6.5, 10, 16).rotateX(Math.PI / 2),
-  llama: new T.ConeGeometry(3.2, 18, 12).rotateX(Math.PI / 2), vaina: new T.BoxGeometry(6, 6, 22), torreta: new T.CylinderGeometry(4, 5, 4, 12),
-};
-// Paneles del casco: juntas, remaches, rejillas, marcas y desgaste (las formas extruidas usan coordenadas de mundo, por eso la repetición pequeña)
-function dibujarCasco(c, w, h, rug) {
-  const r = HG.semilla(5), g = v => `rgb(${v | 0},${v | 0},${v | 0})`;
-  c.fillStyle = rug ? g(120) : "#e9ecf1"; c.fillRect(0, 0, w, h);
-  const paneles = [[0, 0, 256, 160], [256, 0, 256, 96], [256, 96, 128, 160], [384, 96, 128, 160], [0, 160, 160, 192], [160, 160, 96, 192], [0, 352, 256, 160], [256, 256, 256, 128], [256, 384, 256, 128]];
-  for (const [x, y, pw, ph] of paneles) {
-    const v = r(); c.fillStyle = rug ? g(90 + v * 70) : `hsl(215, 10%, ${86 + v * 7}%)`; c.fillRect(x + 2, y + 2, pw - 4, ph - 4);
-    c.strokeStyle = rug ? g(220) : "rgba(40,48,60,0.55)"; c.lineWidth = 2.5; c.strokeRect(x + 1, y + 1, pw - 2, ph - 2);
-    c.fillStyle = rug ? g(200) : "rgba(60,66,76,0.7)";
-    for (let i = 8; i < pw - 4; i += 16) { c.fillRect(x + i, y + 5, 2, 2); c.fillRect(x + i, y + ph - 7, 2, 2); }
+HG.NAVES.forEach(n => cargarNave(n.id).catch(() => {}));
+// colores base del casco (gris claro con paneles, vientre oscuro, popa de metal) y marca de las zonas de acento
+function geoNave(idx) {
+  const n = HG.NAVES[idx], M = navesMalla[n.id];
+  if (navesGeo[n.id]) return navesGeo[n.id];
+  const sombra = HG.Mallas.cavidad("nave:" + n.id, M), base = new Float32Array(M.nv * 3), acento = new Float32Array(M.nv);
+  const claro = HG.lin("#a9b0bb"), oscuro = HG.lin("#3a4048"), tmp = new T.Color(), ss = HG.Mallas.sstep;
+  let ancho = 0; for (let v = 0; v < M.nv; v++) ancho = Math.max(ancho, Math.abs(M.pos[v * 3]));
+  for (let v = 0; v < M.nv; v++) {
+    const x = M.pos[v * 3], y = M.pos[v * 3 + 1], z = M.pos[v * 3 + 2], ny = M.nor[v * 3 + 1];
+    const cx = Math.floor(x * 40), cy = Math.floor(y * 40), cz = Math.floor(z * 40), h = Math.abs((Math.sin(cx * 12.9898 + cy * 78.233 + cz * 37.719) * 43758.5453) % 1);
+    tmp.copy(claro).multiplyScalar(0.86 + h * 0.2);
+    tmp.lerp(oscuro, 0.55 * ss(-0.1, -0.6, ny) + 0.6 * ss(0.4, 0.48, z));            // vientre y zona de motores
+    tmp.multiplyScalar(sombra[v]);
+    base[v * 3] = tmp.r; base[v * 3 + 1] = tmp.g; base[v * 3 + 2] = tmp.b;
+    acento[v] = Math.max(ss(0.35, 0.6, ny) * (ss(0.06, 0.03, Math.abs(x)) + ss(0.8 * ancho, 0.95 * ancho, Math.abs(x)) * 0.9), ss(-0.36, -0.42, z) * ss(0.2, 0.5, ny) * 0.9);
   }
-  if (!rug) {
-    c.fillStyle = "rgba(30,34,40,0.8)"; for (let i = 0; i < 6; i++) c.fillRect(290, 280 + i * 10, 80, 4); // rejilla
-    c.fillStyle = "#f2c230"; c.fillRect(20, 460, 120, 10); c.fillStyle = "#1b1b1b"; for (let x = 20; x < 140; x += 16) c.fillRect(x, 460, 8, 10);
-    c.fillStyle = "rgba(40,48,60,0.7)"; c.font = "bold 22px Arial"; c.fillText("HG-01", 300, 60);
-  }
-  for (let k = 0; k < 140; k++) { // desgaste y polvo
-    const x = r() * w, y = r() * h, rr = 6 + r() * 40, gr = c.createRadialGradient(x, y, 0, x, y, rr);
-    gr.addColorStop(0, rug ? "rgba(255,255,255,0.25)" : "rgba(70,60,50,0.07)"); gr.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = gr; c.fillRect(x - rr, y - rr, rr * 2, rr * 2);
-  }
+  return navesGeo[n.id] = { M, base, acento };
 }
-let _texCasco = null, _rugCasco = null;
-const texCasco = () => _texCasco || (_texCasco = HG.lienzoTex(512, 512, (c, w, h) => dibujarCasco(c, w, h, false), [1 / 22, 1 / 22]));
-const rugCasco = () => _rugCasco || (_rugCasco = HG.lienzoTex(512, 512, (c, w, h) => dibujarCasco(c, w, h, true), [1 / 22, 1 / 22]));
-HG.largoNave = idx => 12 + idx * 1.6;
+HG.largoNave = idx => HG.NAVES[idx].largo;
 HG.modeloNave = (idx, asp = { nivel: 0, color: HG.COLORES_NAVE[0] }) => {
   const g = new T.Group(), m = new T.Group(); g.add(m);
-  const n = asp.nivel || 0, col = asp.color || HG.COLORES_NAVE[0];
-  const casco = new T.MeshStandardMaterial({ map: texCasco(), roughnessMap: rugCasco(), color: HG.lin(idx === 9 ? "#f6f1e6" : "#f2f4f8"), roughness: n >= 2 ? 0.6 : 0.85, metalness: n >= 2 ? 0.75 : 0.4, emissive: HG.lin("#3a3f4a"), emissiveIntensity: 0.15 });
-  const panel = new T.MeshStandardMaterial({ map: texCasco(), roughnessMap: rugCasco(), color: HG.lin("#d3d9e2"), roughness: 0.9, metalness: 0.45 }), oscuro = HG.mat("#2b303c", { r: 0.5, m: 0.8 }), metal = HG.mat("#8a93a3", { r: 0.3, m: 0.9 });
-  const acento = n >= 1 ? HG.mat(col, { r: 0.4, m: 0.5, e: col, ei: 0.35 }) : HG.mat("#5d6878", { r: 0.5, m: 0.5 });
-  const oro = HG.mat("#e2b44a", { r: 0.3, m: 0.9 });
-  const add = (geo, mm, x, y, z, p = m) => M(geo, mm, x, y, z, p, false);
-  add(GN.casco, casco, 0, 0, 0); add(GN.lomo, panel, 0, 5, 0);
-  add(GN.cabina, HG.mat("#9fd8ff", { r: 0.08, m: 0.9, e: "#1a4a7a", ei: 0.6 }), 0, 8, -12).scale.set(0.8, 0.55, 1.9);
-  add(GN.cabeza, HG.mat("#f2f4f8"), 0, 8, -10.5); add(GN.cabeza, HG.mat("#d4a437", { e: "#d4a437", ei: 0.5, m: 0.9, r: 0.2 }), 0, 8.3, -12.6).scale.set(0.6, 0.5, 0.35);
-  add(GN.bloque, casco, 0, 2, 22).scale.set(idx >= 4 ? 1.15 : 1, idx >= 4 ? 1.12 : 1, 1);
-  add(GN.ala, panel, 0, -5, 0); add(GN.alaD, panel, 0, -5, 0);
-  if (idx >= 1) { add(GN.canard, acento, 0, -1, 0); add(GN.canardD, acento, 0, -1, 0); }
-  const canones = [], llamas = [];
-  for (const sg of [-1, 1]) {
-    add(GN.aleta, casco, sg * 12, 5, 6).rotation.z = -sg * 0.3;
-    if (idx >= 6) add(GN.aleta, acento, sg * 16, 3, 12).rotation.z = -sg * 0.75;
-    add(GN.luz, HG.brillo(sg < 0 ? "#ff3030" : "#30ff60"), sg * 19, 28, 17);
-    add(GN.rejilla, oscuro, sg * 16.5, 2, 4); add(GN.franja, idx === 9 ? oro : acento, sg * 3.6, 5.4, -8);
-    const c = add(GN.canon, oscuro, sg * 5, -9, -27); canones.push(c);
-    add(GN.motor, oscuro, sg * 7.5, 2, 32);
-    llamas.push(add(GN.llama, HG.brillo(n >= 4 ? col : "#8fe0ff"), sg * 7.5, 2, 44));
-    if (n >= 3) add(GN.neon, HG.brillo(col), sg * 15.5, -4.5, 4);
-    if (idx >= 7) add(GN.vaina, panel, sg * 22, -2, 10); // bodegas laterales
+  const nv = HG.NAVES[idx], L = nv.largo, n = asp.nivel || 0, col = asp.color || HG.COLORES_NAVE[0], cc = HG.lin(col);
+  const mat = new T.MeshStandardMaterial({ vertexColors: true, roughness: n >= 2 ? 0.32 : 0.62, metalness: n >= 2 ? 0.8 : 0.35, emissive: n >= 3 ? cc.clone().multiplyScalar(0.16) : new T.Color(0) });
+  const montar = () => {
+    const { M, base, acento } = geoNave(idx), c = new Float32Array(M.nv * 3), gris = HG.lin("#6d7684"), ac = n >= 1 ? cc : gris;
+    for (let v = 0; v < M.nv; v++) { const a = acento[v]; for (let k = 0; k < 3; k++) c[v * 3 + k] = base[v * 3 + k] * (1 - a) + (k === 0 ? ac.r : k === 1 ? ac.g : ac.b) * a * (base[v * 3 + k] * 0.4 + 0.75); }
+    const geo = new T.BufferGeometry();
+    geo.setAttribute("position", new T.BufferAttribute(M.pos, 3)); geo.setAttribute("normal", new T.BufferAttribute(M.nor, 3)); geo.setAttribute("color", new T.BufferAttribute(c, 3)); geo.setIndex(new T.BufferAttribute(M.idx, 1));
+    const malla = new T.Mesh(geo, mat); malla.scale.setScalar(L); malla.castShadow = true; m.add(malla);
+  };
+  if (navesMalla[nv.id]) montar(); else cargarNave(nv.id).then(montar).catch(() => {});
+  // motores con llama, bocas de los cañones y bodegas laterales para armas extra
+  const llamas = [], canones = [], punto = (x, y, z, p) => { const o = new T.Group(); o.position.set(x * L, y * L, z * L); p.add(o); return o; };
+  const matLlama = HG.brillo(n >= 4 ? col : "#8fe0ff"), geoLlama = una3("llama", () => new T.ConeGeometry(0.05, 1, 14).translate(0, 0.5, 0).rotateX(Math.PI / 2));
+  for (const [x, y, z] of nv.motores) {
+    const piv = punto(x, y, z, m); piv.scale.setScalar(L);
+    const ll = new T.Mesh(geoLlama, matLlama); ll.position.set(0, 0, 0); ll.scale.set(1, 1, 0.2); piv.add(ll); llamas.push(ll);
+    if (n >= 3) { const halo = new T.Mesh(una3("halo", () => new T.TorusGeometry(0.052, 0.006, 6, 20)), HG.brillo(col)); piv.add(halo); }
   }
-  for (let i = 0; i < Math.min(idx >= 2 ? HG.NAVES[idx].huecos - 1 : 0, 4); i++) { // vainas de armas bajo las alas
-    const sg = i % 2 ? 1 : -1, x = sg * (24 + Math.floor(i / 2) * 6);
-    canones.push(add(GN.canon, metal, x, -6, 6)); add(GN.luz, HG.brillo("#ff8a3a"), x, -6, -4);
-  }
-  if (idx >= 4) llamas.push(add(GN.llama, HG.brillo(n >= 4 ? col : "#8fe0ff"), 0, 6, 44)), add(GN.motor, oscuro, 0, 6, 32).scale.setScalar(0.7);
-  if (idx >= 6) { add(GN.torreta, metal, 0, 9, 6); add(GN.canon, oscuro, 0, 10, -2).scale.set(0.8, 0.8, 0.6); }
-  if (idx === 9) { add(GN.franja, oro, 0, 5.6, 14).scale.set(3, 1, 0.6); }
-  const L = HG.largoNave(idx); m.scale.setScalar(L / 76);
+  for (const [x, y, z] of nv.canones) canones.push(punto(x, y, z, m));
+  for (let i = 0; i < Math.max(0, nv.huecos - 1 - (nv.huecos > 1 ? 1 : 0)) && nv.huecos > 2; i++) { const sg = i % 2 ? 1 : -1; canones.push(punto(sg * (nv.ala + Math.floor(i / 2) * 0.04), nv.canones[0][1], nv.canones[0][2] + 0.1, m)); }
   g.userData = {
     llamas, canones, largo: L,
     actualizar(t, empuje = 0.5) {
-      for (const l of llamas) l.scale.set(1, 1, 0.5 + empuje * 1.4 + Math.random() * 0.3);
-      if (n >= 5) casco.emissiveIntensity = 0.45 + Math.sin(t * 3) * 0.35, casco.emissive.copy(HG.lin(col)).multiplyScalar(0.5 + 0.5 * Math.sin(t * 2));
+      for (const l of llamas) l.scale.set(1, 1, 0.12 + empuje * 0.32 + Math.random() * 0.05);
+      if (n >= 5) mat.emissive.copy(cc).multiplyScalar(0.12 + 0.12 * Math.sin(t * 2));
     },
   };
   return g;
 };
+const geo3 = {}; function una3(k, f) { return geo3[k] || (geo3[k] = f()); }
 
 // ---------- Piratas ----------
 const GP = {

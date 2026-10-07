@@ -204,9 +204,9 @@ const caraTex = d => carasTex[d.id] || (carasTex[d.id] = { abierta: dibujarCara(
 
 // Oclusión barata: oscurece los huecos (pliegues, bolsillos, cuencas) y aclara un poco lo que sobresale
 const cavidades = {};
-function cavidad(id) {
+function cavidad(id, Mx) {
   if (cavidades[id]) return cavidades[id];
-  const M = cache[id], P = M.pos, N = M.nor, ids = new Map(), rep = new Int32Array(M.nv);
+  const M = Mx || cache[id], P = M.pos, N = M.nor, ids = new Map(), rep = new Int32Array(M.nv);
   for (let v = 0; v < M.nv; v++) { const k = Math.round(P[v * 3] * 3000) + "," + Math.round(P[v * 3 + 1] * 3000) + "," + Math.round(P[v * 3 + 2] * 3000); let r = ids.get(k); if (r === undefined) { r = ids.size; ids.set(k, r); } rep[v] = r; }
   const n = ids.size, sp = new Float32Array(n * 3), sn = new Float32Array(n * 3), cnt = new Float32Array(n), sl = new Float32Array(n);
   const arista = (a, b) => {
@@ -273,9 +273,34 @@ function geometria(d) {
   return geos[clave] = g;
 }
 const materiales = {};
-const material = d => materiales[d.id] || (materiales[d.id] = new T.MeshStandardMaterial({ vertexColors: true, skinning: true, side: T.DoubleSide, roughness: d.rugosidad ?? 0.72, metalness: d.metal ?? 0.08 }));
+// Por dentro se ilumina igual que por fuera: así los huecos que dejan las mangas al moverse no se ven negros
+const material = d => {
+  if (materiales[d.id]) return materiales[d.id];
+  const m = new T.MeshStandardMaterial({ vertexColors: true, skinning: true, side: T.DoubleSide, roughness: d.rugosidad ?? 0.72, metalness: d.metal ?? 0.08 });
+  m.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace(/float faceDirection = gl_FrontFacing \? 1\.0 : - 1\.0;/, "float faceDirection = 1.0;"); };
+  return materiales[d.id] = m;
+};
+
+// Se prueba el modelo en las poses con los brazos levantados y se quitan los triángulos que se estiran de más
+// (los que unen la mano con el muslo, la manga con el torso...): se ven como astillas entre las dos partes.
+function quitarAstillas(malla, raiz, anim) {
+  const g = malla.geometry, pos = g.attributes.position, idx = g.index.array, tmp = new T.Vector3();
+  const largo = (a, b) => { const dx = pos.getX(a) - pos.getX(b), dy = pos.getY(a) - pos.getY(b), dz = pos.getZ(a) - pos.getZ(b); return Math.hypot(dx, dy, dz); };
+  const reposo = new Float32Array(idx.length); for (let t = 0; t < idx.length; t += 3) reposo[t] = Math.max(largo(idx[t], idx[t + 1]), largo(idx[t + 1], idx[t + 2]), largo(idx[t + 2], idx[t]));
+  const malo = new Uint8Array(idx.length / 3), P = new Float32Array(pos.count * 3);
+  for (const [e, t] of [["saludar", 0.9], ["picar", 0.3], ["picar", 0.75], ["correr", 0.35], ["andar", 0.5], ["pilotar", 0.5]]) {
+    anim(e, t, 0.016); raiz.updateMatrixWorld(true); malla.skeleton.update();
+    for (let v = 0; v < pos.count; v++) { tmp.fromBufferAttribute(pos, v); malla.boneTransform(v, tmp); P[v * 3] = tmp.x; P[v * 3 + 1] = tmp.y; P[v * 3 + 2] = tmp.z; }
+    const d = (a, b) => Math.hypot(P[a * 3] - P[b * 3], P[a * 3 + 1] - P[b * 3 + 1], P[a * 3 + 2] - P[b * 3 + 2]);
+    for (let t = 0; t < idx.length; t += 3) { const m = Math.max(d(idx[t], idx[t + 1]), d(idx[t + 1], idx[t + 2]), d(idx[t + 2], idx[t])); if (m > Math.max(2 * reposo[t], 0.03)) malo[t / 3] = 1; }
+  }
+  anim("quieto", 0, 0.016);
+  const nuevo = []; for (let t = 0; t < idx.length; t += 3) if (!malo[t / 3]) nuevo.push(idx[t], idx[t + 1], idx[t + 2]);
+  g.setIndex(new T.BufferAttribute(Uint16Array.from(nuevo), 1)); g.userData.sinAstillas = true;
+}
 
 HG.Mallas = {
+  leer, cavidad, sstep,
   listo: id => !!cache[id],
   cargar(id) {
     if (cache[id]) return Promise.resolve(cache[id]);
@@ -299,6 +324,7 @@ HG.Mallas = {
     malla.castShadow = malla.receiveShadow = true; malla.frustumCulled = false;
     raiz.add(malla); raiz.add(cadera); raiz.updateMatrixWorld(true);
     malla.bind(new T.Skeleton(huesos));
+    if (!malla.geometry.userData.sinAstillas) quitarAstillas(malla, raiz, HG.animacion(h, cadera, columna, J.cad * A, { reposoZ: 0.02, mano: true }));
     const pico = HG.hacerPico(h.manos[0]), anim = HG.animacion(h, cadera, columna, J.cad * A, { reposoZ: 0.02, mano: true });
     let animar = anim;
     if (HG.MALLAS[d.malla].cara) { // ojos, cejas y boca, que parpadean
