@@ -6,7 +6,7 @@
 const HG = window.HG, T = THREE;
 
 HG.PERSONAJES = [
-  { id: "haluski", corto: "Haluski", nombre: "Haluski", rol: "Protagonista", bio: "Piloto protagonista. Valiente, impulsivo y con un don para las naves.",
+  { id: "haluski", malla: "haluski", corto: "Haluski", nombre: "Haluski", rol: "Protagonista", bio: "Piloto protagonista. Valiente, impulsivo y con un don para las naves.",
     piel: "#efc4a0", pelo: "#d9b062", peinado: "puntas", ojos: "#3f86d0", labios: "#c27a6e", traje: "#2c5aa8", panel: "#244a8a", cuello: "#a7afb8", detalle: "#3a414c",
     guantes: "#8c939c", botas: "#3a3d42", mochila: "#2c5aa8", mangueras: true, parches: "haluski", altura: 1.8, k: 1.0, semilla: 11 },
   { id: "nadia", malla: "nadia", corto: "Nadia", nombre: "Nadia Reyes", rol: "Exploradora · Amigos", bio: "Exploradora. Conoce cada roca de los planetas y a cada piloto de la estación.",
@@ -18,6 +18,12 @@ HG.PERSONAJES = [
   { id: "bruno", malla: "bruno", corto: "Bruno", nombre: "Bruno «Llave» Kowalski", rol: "Mecánico del hangar", bio: "Mecánico del hangar. Si tiene tornillos, Bruno lo arregla.",
     piel: "#d6a482", pelo: "#4a3222", peinado: "cresta", barba: "larga", ojos: "#4a3020", labios: "#a8665c", traje: "#c0661f", panel: "#2a2c31", cuello: "#2a2c31", detalle: "#2a2c31",
     guantes: "#c0661f", botas: "#2a2c31", mochila: "#34373d", arnes: "#22242a", herramientas: true, sucio: true, parches: "bruno", altura: 1.9, k: 1.18, semilla: 44 },
+  { id: "astro", malla: "astro", corto: "Astronauta", nombre: "Astronauta", rol: "Ingeniero de vuelo", bio: "Ingeniero de vuelo. Siempre lleva el casco bajo el brazo, por si acaso.",
+    piel: "#e0b08c", pelo: "#5a4630", peinado: "atras", ojos: "#4a6a8a", labios: "#b06c60", traje: "#d9dde3", panel: "#8a919b", cuello: "#8a919b", detalle: "#5b6068",
+    guantes: "#6b7079", botas: "#4a4f57", mochila: "#b8bec7", parches: "kenji", altura: 1.82, k: 1.02, semilla: 55 },
+  { id: "piloto", malla: "piloto", corto: "Piloto", nombre: "Piloto", rol: "Piloto de pruebas", bio: "Piloto de pruebas. Vuela primero y pregunta después.",
+    piel: "#e3b894", pelo: "#2a2018", peinado: "puntas", ojos: "#3a6a4a", labios: "#b8695f", traje: "#2f3b52", panel: "#c9d2de", cuello: "#c9d2de", detalle: "#3a414c",
+    guantes: "#2a2f3a", botas: "#1d2027", mochila: "#2f3b52", altura: 1.85, k: 1.0, semilla: 66 },
 ];
 
 const M = HG.malla, V = (x, y, z) => new T.Vector3(x, y, z), cache = {};
