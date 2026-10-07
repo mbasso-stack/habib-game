@@ -206,17 +206,9 @@ for (let i = 0; i < 6; i++) {
   p.grupo.position.set(x, 0, z); escena.add(p.grupo);
   paseantes.push({ p, obj: PUNTOS[(i + 3) % PUNTOS.length], espera: HG.rnd(0, 4), t: HG.rnd(0, 10) });
 }
-// robot de la tienda (modelo CC0 RobotExpressive)
-let robot = null, mezclador = null, accionesRobot = {}, saludando = 0;
-if (THREE.GLTFLoader) new THREE.GLTFLoader().load("modelos/robot.glb", g => {
-  robot = g.scene; const caja = new T.Box3().setFromObject(robot), h = caja.max.y - caja.min.y;
-  robot.scale.setScalar(2.1 / h); robot.position.set(TI.x, 0, TI.z + 2.8); robot.rotation.y = 0;
-  robot.traverse(o => { if (o.isMesh) { o.castShadow = true; o.material.metalness = 0.8; o.material.roughness = 0.3; if (o.material.color) o.material.color.lerp(new T.Color(0.75, 0.78, 0.82), 0.6); } });
-  escena.add(robot);
-  mezclador = new T.AnimationMixer(robot);
-  for (const c of g.animations) accionesRobot[c.name] = mezclador.clipAction(c);
-  accionesRobot.Idle && accionesRobot.Idle.play();
-}, undefined, () => {});
+// robot de la tienda (modelo 3D de Malik): saluda cuando te acercas
+const robot = HG.crearPersonaje(HG.ROBOT); robot.grupo.position.set(TI.x, 0, TI.z + 2.8); escena.add(robot.grupo);
+let saludando = -10;
 cajasCol.push([TI.x - 1, TI.x + 1, TI.z + 2, TI.z + 4]);
 
 // nave expuesta en el hangar
@@ -283,7 +275,7 @@ HG.Estacion = {
       g.rotation.y += HG.angDif(g.rotation.y, Math.atan2(dx, dz)) * Math.min(1, dt * 6);
       w.p.animar("andar", w.t * 0.9, dt);
     }
-    if (mezclador) mezclador.update(dt);
+    robot.animar(saludando > 0 ? "saludar" : "quieto", t, dt);
     holoPlaneta.rotation.y += dt * 0.6; holo.rotation.y += dt * 0.15; planetaVentana.rotation.y += dt * 0.004;
     for (let i = 0; i < POLVO; i++) { pp[i * 3 + 1] += Math.sin(t * 0.3 + i) * dt * 0.05; pp[i * 3] += dt * 0.05; if (pp[i * 3] > AN) pp[i * 3] = -AN; }
     polvoGeo.attributes.position.needsUpdate = true;
@@ -294,11 +286,8 @@ HG.Estacion = {
       const d = dentro ? 0 : Math.hypot(z.x - p.x, z.z - p.z);
       if ((dentro || d < z.r) && d < dmin) { dmin = d; zonaCerca = z; }
     }
-    if (robot && zonaCerca && zonaCerca.zona === "tienda" && saludando <= 0 && accionesRobot.Wave) {
-      saludando = 6; const a = accionesRobot.Wave; a.reset(); a.setLoop(T.LoopOnce, 1); a.play(); a.crossFadeFrom(accionesRobot.Idle, 0.2, false);
-      setTimeout(() => { accionesRobot.Idle.reset().play(); a.crossFadeTo(accionesRobot.Idle, 0.3, false); }, 2000);
-    }
-    if (saludando > 0) saludando -= dt;
+    if (zonaCerca && zonaCerca.zona === "tienda" && saludando <= -4) saludando = 2.2;
+    saludando -= dt; if (!zonaCerca || zonaCerca.zona !== "tienda") saludando = Math.min(saludando, -4);
     HG.ui.aviso(activo && zonaCerca ? `<b>E</b> · ${zonaCerca.texto}` : null);
     if (activo && zonaCerca && HG.input.pulsada("KeyE")) HG.juego.zona(zonaCerca.zona);
   },

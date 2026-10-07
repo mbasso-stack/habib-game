@@ -9,13 +9,13 @@ HG.PERSONAJES = [
   { id: "haluski", corto: "Haluski", nombre: "Haluski", rol: "Protagonista", bio: "Piloto protagonista. Valiente, impulsivo y con un don para las naves.",
     piel: "#efc4a0", pelo: "#d9b062", peinado: "puntas", ojos: "#3f86d0", labios: "#c27a6e", traje: "#2c5aa8", panel: "#244a8a", cuello: "#a7afb8", detalle: "#3a414c",
     guantes: "#8c939c", botas: "#3a3d42", mochila: "#2c5aa8", mangueras: true, parches: "haluski", altura: 1.8, k: 1.0, semilla: 11 },
-  { id: "nadia", corto: "Nadia", nombre: "Nadia Reyes", rol: "Exploradora · Amigos", bio: "Exploradora. Conoce cada roca de los planetas y a cada piloto de la estación.",
+  { id: "nadia", malla: "nadia", corto: "Nadia", nombre: "Nadia Reyes", rol: "Exploradora · Amigos", bio: "Exploradora. Conoce cada roca de los planetas y a cada piloto de la estación.",
     piel: "#d29a74", pelo: "#141418", peinado: "rizos", ojos: "#5a3a22", labios: "#b0625a", traje: "#3d7a3a", panel: "#1f3c6e", cuello: "#1f3c6e", detalle: "#1f3c6e",
     guantes: "#3d7a3a", botas: "#2c5a2a", mochila: "#8f959c", rayas: true, parches: "nadia", mujer: true, altura: 1.7, k: 0.92, semilla: 22 },
-  { id: "kenji", corto: "Kenji", nombre: "Capitán Kenji Morita", rol: "Comandante · Clanes", bio: "Comandante veterano. Dirige la estación y los clanes con mano firme.",
+  { id: "kenji", malla: "kenji", corto: "Kenji", nombre: "Capitán Kenji Morita", rol: "Comandante · Clanes", bio: "Comandante veterano. Dirige la estación y los clanes con mano firme.",
     piel: "#deb08a", pelo: "#b4b4b4", peinado: "atras", barba: "corta", ojos: "#3b2a1e", labios: "#b07468", traje: "#e2721f", panel: "#cf6316", cuello: "#4a4f57", detalle: "#5b6068",
     guantes: "#5b6068", botas: "#d0681c", mochila: "#e2721f", arnes: "#6b7079", consola: true, parches: "kenji", altura: 1.76, k: 1.05, semilla: 33 },
-  { id: "bruno", corto: "Bruno", nombre: "Bruno «Llave» Kowalski", rol: "Mecánico del hangar", bio: "Mecánico del hangar. Si tiene tornillos, Bruno lo arregla.",
+  { id: "bruno", malla: "bruno", corto: "Bruno", nombre: "Bruno «Llave» Kowalski", rol: "Mecánico del hangar", bio: "Mecánico del hangar. Si tiene tornillos, Bruno lo arregla.",
     piel: "#d6a482", pelo: "#4a3222", peinado: "cresta", barba: "larga", ojos: "#4a3020", labios: "#a8665c", traje: "#c0661f", panel: "#2a2c31", cuello: "#2a2c31", detalle: "#2a2c31",
     guantes: "#c0661f", botas: "#2a2c31", mochila: "#34373d", arnes: "#22242a", herramientas: true, sucio: true, parches: "bruno", altura: 1.9, k: 1.18, semilla: 44 },
 ];
@@ -479,7 +479,75 @@ function fusionar(raiz) {
 }
 
 // ---------- Cuerpo ----------
-HG.crearPersonaje = (d) => {
+// Animación por huesos (los mismos nombres en los personajes de código y en los de malla)
+HG.animacion = (h, cadera, col, cadY, opc = {}) => {
+  const reposoZ = opc.reposoZ ?? 0.1;
+  let parpadeo = HG.rnd(1, 4), mirada = 0, mirarA = 0;
+  return (estado, t, dt = 0.016) => {
+    // postura neutra
+    for (let i = 0; i < 2; i++) {
+      const s = i ? 1 : -1;
+      h.hombros[i].rotation.set(0.04, 0, s * reposoZ); h.codos[i].rotation.set(-0.15, 0, 0); h.manos[i].rotation.set(0, 0, 0);
+      h.muslos[i].rotation.set(0, 0, 0); h.rodillas[i].rotation.set(0, 0, 0); h.tobillos[i].rotation.set(0, 0, 0);
+    }
+    col.rotation.set(0, 0, 0); h.cabeza.rotation.set(0, 0, 0); cadera.position.set(0, cadY, 0); cadera.rotation.set(0, 0, 0);
+    if (estado === "andar" || estado === "correr") {
+      const c = estado === "correr", f = t * (c ? 11 : 7.5), A = c ? 0.95 : 0.55;
+      for (let i = 0; i < 2; i++) {
+        const ph = f + i * Math.PI;
+        h.muslos[i].rotation.x = -Math.sin(ph) * A;
+        h.rodillas[i].rotation.x = Math.max(0, Math.sin(ph - 1.3)) * (c ? 1.5 : 0.9) + 0.05;
+        h.tobillos[i].rotation.x = Math.sin(ph - 0.6) * (c ? 0.35 : 0.22);
+        h.hombros[i].rotation.x = Math.sin(ph) * (c ? 0.9 : 0.45);
+        h.codos[i].rotation.x = c ? -1.25 : -0.35 - Math.max(0, -Math.sin(ph)) * 0.25;
+      }
+      cadera.position.y = cadY - Math.abs(Math.cos(f)) * (c ? 0.05 : 0.025) + (c ? 0.02 : 0);
+      cadera.rotation.y = Math.sin(f) * (c ? 0.12 : 0.08); cadera.rotation.z = Math.cos(f) * 0.03;
+      col.rotation.x = c ? 0.22 : 0.04; col.rotation.y = -Math.sin(f) * (c ? 0.2 : 0.13); col.rotation.z = -cadera.rotation.z;
+      h.cabeza.rotation.y = Math.sin(f) * 0.05; h.cabeza.rotation.x = c ? -0.12 : 0;
+    } else if (estado === "saltar") {
+      for (let i = 0; i < 2; i++) { h.muslos[i].rotation.x = -0.7 + i * 0.4; h.rodillas[i].rotation.x = 1.1 - i * 0.4; h.tobillos[i].rotation.x = 0.3; h.hombros[i].rotation.set(-0.5, 0, (i ? 1 : -1) * 0.9); h.codos[i].rotation.x = -0.5; }
+      col.rotation.x = 0.08;
+    } else if (estado === "picar") {
+      const u = (t * 2.2) % 1, sw = u < 0.55 ? u / 0.55 : 1 - (u - 0.55) / 0.45;
+      h.hombros[0].rotation.x = -2.6 + (1 - sw) * 2.2; h.hombros[1].rotation.x = -2.2 + (1 - sw) * 1.8;
+      h.codos[0].rotation.x = -0.4; h.codos[1].rotation.x = -0.6;
+      col.rotation.x = 0.1 + (1 - sw) * 0.35; h.muslos[0].rotation.x = -0.35; h.rodillas[0].rotation.x = 0.4; h.muslos[1].rotation.x = 0.15; h.rodillas[1].rotation.x = 0.1;
+    } else if (estado === "saludar") {
+      h.hombros[0].rotation.set(0, 0, -2.5); h.codos[0].rotation.set(0, 0, -0.4 + Math.sin(t * 9) * 0.45);
+      h.cabeza.rotation.z = 0.1; col.rotation.z = 0.04;
+      h.hombros[1].rotation.x = Math.sin(t * 1.6) * 0.03;
+    } else if (estado === "pilotar") {
+      for (let i = 0; i < 2; i++) { h.muslos[i].rotation.x = -1.5; h.rodillas[i].rotation.x = 1.5; h.hombros[i].rotation.x = -0.9; h.codos[i].rotation.x = -0.6; }
+      cadera.position.y = cadY * 0.57;
+    } else { // quieto: respiración, peso que pasa de una pierna a otra y mirada
+      const p = Math.sin(t * 0.5), r = Math.sin(t * 1.6);
+      cadera.position.x = p * 0.012; cadera.rotation.z = p * 0.035; cadera.position.y = cadY - Math.abs(p) * 0.004;
+      for (let i = 0; i < 2; i++) { h.muslos[i].rotation.z = -cadera.rotation.z; h.tobillos[i].rotation.z = 0; h.hombros[i].rotation.x = r * 0.03 + 0.04; }
+      h.rodillas[p > 0 ? 0 : 1].rotation.x = Math.abs(p) * 0.12; h.muslos[p > 0 ? 0 : 1].rotation.x = -Math.abs(p) * 0.06;
+      col.rotation.x = r * 0.02; col.rotation.z = -cadera.rotation.z * 0.7;
+      h.cabeza.rotation.y = Math.sin(t * 0.45) * 0.25; h.cabeza.rotation.z = cadera.rotation.z * 0.3;
+    }
+    // ojos: pequeños movimientos y parpadeo
+    mirada -= dt; if (mirada < 0) { mirada = HG.rnd(0.6, 2.2); mirarA = HG.rnd(-0.2, 0.2); }
+    for (const o of h.ojos) o.rotation.y = HG.lerp(o.rotation.y, mirarA, Math.min(1, dt * 20));
+    parpadeo -= dt; const cerrado = parpadeo < 0.12;
+    if (parpadeo < 0) parpadeo = HG.rnd(2, 5);
+    for (const pa of h.parpados) pa.rotation.x = cerrado ? 1.35 : PARPADO;
+  };
+};
+
+// Pico del minero en la mano derecha (solo se ve al picar)
+HG.hacerPico = (mano) => {
+  const pico = HG.pivote(mano, 0, -0.06, 0), mS = HG.mat("#16181c", { r: 0.85 }), mOscuro = HG.mat("#2b2f36", { r: 0.5, m: 0.5 }), mMetal = HG.mat("#c4cad2", { r: 0.28, m: 0.9 });
+  M(new T.CylinderGeometry(0.013, 0.015, 0.72, 10).rotateX(Math.PI / 2), HG.mat("#6b4a2e", { r: 0.8 }), 0, 0, 0.24, pico);
+  for (let i = 0; i < 4; i++) M(new T.TorusGeometry(0.016, 0.004, 6, 12), mS, 0, 0, -0.06 + i * 0.03, pico);
+  M(HG.cajaR(0.04, 0.05, 0.05, 0.01), mOscuro, 0, 0, 0.59, pico);
+  for (const s of [-1, 1]) M(mechon([V(0, 0, 0.59), V(0, s * 0.1, 0.6), V(0, s * 0.2, 0.575)], 0.022, 0.004, 8, 6), mMetal, 0, 0, 0, pico);
+  pico.visible = false; return pico;
+};
+
+const crearProcedural = (d) => {
   const k = d.k, raiz = new T.Group(), h = {};
   const mT = matTela(d.traje, { sucio: d.sucio }), mP = matTela(d.panel, { sucio: d.sucio }), mD = HG.mat(d.detalle, { r: 0.45, m: 0.4 });
   const mG = matTela(d.guantes, { r: 0.55 }), mB = matTela(d.botas, { r: 0.6, sucio: d.sucio }), mS = HG.mat("#16181c", { r: 0.85 });
@@ -592,75 +660,26 @@ HG.crearPersonaje = (d) => {
     M(HG.cajaR(0.115 * k, 0.026, 0.25, 0.01), mS, 0, -0.072, 0.037, tob);
     h.muslos.push(muslo); h.rodillas.push(rod); h.tobillos.push(tob);
   }
-  // pico (solo se ve al picar)
-  const pico = HG.pivote(h.manos[0], 0, -0.06, 0);
-  M(new T.CylinderGeometry(0.013, 0.015, 0.72, 10).rotateX(Math.PI / 2), HG.mat("#6b4a2e", { r: 0.8 }), 0, 0, 0.24, pico);
-  for (let i = 0; i < 4; i++) M(new T.TorusGeometry(0.016, 0.004, 6, 12), mS, 0, 0, -0.06 + i * 0.03, pico);
-  M(HG.cajaR(0.04, 0.05, 0.05, 0.01), mOscuro, 0, 0, 0.59, pico);
-  for (const s of [-1, 1]) M(mechon([V(0, 0, 0.59), V(0, s * 0.1, 0.6), V(0, s * 0.2, 0.575)], 0.022, 0.004, 8, 6), mMetal, 0, 0, 0, pico);
-  pico.visible = false;
+  const pico = HG.hacerPico(h.manos[0]);
   fusionar(raiz);
   raiz.traverse(o => { if (o.isMesh) o.userData.sombra = o.castShadow; });
 
-  const cadY = 0.97;
-  let parpadeo = HG.rnd(1, 4), mirada = 0, mirarA = 0;
-  return {
-    grupo: raiz, def: d, huesos: h,
-    pico(v) { pico.visible = v; },
-    animar(estado, t, dt = 0.016) {
-      // postura neutra
-      for (let i = 0; i < 2; i++) {
-        const s = i ? 1 : -1;
-        h.hombros[i].rotation.set(0.04, 0, s * 0.1); h.codos[i].rotation.set(-0.15, 0, 0); h.manos[i].rotation.set(0, 0, 0);
-        h.muslos[i].rotation.set(0, 0, 0); h.rodillas[i].rotation.set(0, 0, 0); h.tobillos[i].rotation.set(0, 0, 0);
-      }
-      col.rotation.set(0, 0, 0); h.cabeza.rotation.set(0, 0, 0); cadera.position.set(0, cadY, 0); cadera.rotation.set(0, 0, 0);
-      if (estado === "andar" || estado === "correr") {
-        const c = estado === "correr", f = t * (c ? 11 : 7.5), A = c ? 0.95 : 0.55;
-        for (let i = 0; i < 2; i++) {
-          const ph = f + i * Math.PI;
-          h.muslos[i].rotation.x = -Math.sin(ph) * A;
-          h.rodillas[i].rotation.x = Math.max(0, Math.sin(ph - 1.3)) * (c ? 1.5 : 0.9) + 0.05;
-          h.tobillos[i].rotation.x = Math.sin(ph - 0.6) * (c ? 0.35 : 0.22);
-          h.hombros[i].rotation.x = Math.sin(ph) * (c ? 0.9 : 0.45);
-          h.codos[i].rotation.x = c ? -1.25 : -0.35 - Math.max(0, -Math.sin(ph)) * 0.25;
-        }
-        cadera.position.y = cadY - Math.abs(Math.cos(f)) * (c ? 0.05 : 0.025) + (c ? 0.02 : 0);
-        cadera.rotation.y = Math.sin(f) * (c ? 0.12 : 0.08); cadera.rotation.z = Math.cos(f) * 0.03;
-        col.rotation.x = c ? 0.22 : 0.04; col.rotation.y = -Math.sin(f) * (c ? 0.2 : 0.13); col.rotation.z = -cadera.rotation.z;
-        h.cabeza.rotation.y = Math.sin(f) * 0.05; h.cabeza.rotation.x = c ? -0.12 : 0;
-      } else if (estado === "saltar") {
-        for (let i = 0; i < 2; i++) { h.muslos[i].rotation.x = -0.7 + i * 0.4; h.rodillas[i].rotation.x = 1.1 - i * 0.4; h.tobillos[i].rotation.x = 0.3; h.hombros[i].rotation.set(-0.5, 0, (i ? 1 : -1) * 0.9); h.codos[i].rotation.x = -0.5; }
-        col.rotation.x = 0.08;
-      } else if (estado === "picar") {
-        const u = (t * 2.2) % 1, sw = u < 0.55 ? u / 0.55 : 1 - (u - 0.55) / 0.45;
-        h.hombros[0].rotation.x = -2.6 + (1 - sw) * 2.2; h.hombros[1].rotation.x = -2.2 + (1 - sw) * 1.8;
-        h.codos[0].rotation.x = -0.4; h.codos[1].rotation.x = -0.6;
-        col.rotation.x = 0.1 + (1 - sw) * 0.35; h.muslos[0].rotation.x = -0.35; h.rodillas[0].rotation.x = 0.4; h.muslos[1].rotation.x = 0.15; h.rodillas[1].rotation.x = 0.1;
-      } else if (estado === "saludar") {
-        h.hombros[0].rotation.set(0, 0, -2.5); h.codos[0].rotation.set(0, 0, -0.4 + Math.sin(t * 9) * 0.45);
-        h.cabeza.rotation.z = 0.1; col.rotation.z = 0.04;
-        h.hombros[1].rotation.x = Math.sin(t * 1.6) * 0.03;
-      } else if (estado === "pilotar") {
-        for (let i = 0; i < 2; i++) { h.muslos[i].rotation.x = -1.5; h.rodillas[i].rotation.x = 1.5; h.hombros[i].rotation.x = -0.9; h.codos[i].rotation.x = -0.6; }
-        cadera.position.y = 0.55;
-      } else { // quieto: respiración, peso que pasa de una pierna a otra y mirada
-        const p = Math.sin(t * 0.5), r = Math.sin(t * 1.6);
-        cadera.position.x = p * 0.012; cadera.rotation.z = p * 0.035; cadera.position.y = cadY - Math.abs(p) * 0.004;
-        for (let i = 0; i < 2; i++) { h.muslos[i].rotation.z = -cadera.rotation.z; h.tobillos[i].rotation.z = 0; h.hombros[i].rotation.x = r * 0.03 + 0.04; }
-        h.rodillas[p > 0 ? 0 : 1].rotation.x = Math.abs(p) * 0.12; h.muslos[p > 0 ? 0 : 1].rotation.x = -Math.abs(p) * 0.06;
-        col.rotation.x = r * 0.02; col.rotation.z = -cadera.rotation.z * 0.7;
-        h.cabeza.rotation.y = Math.sin(t * 0.45) * 0.25; h.cabeza.rotation.z = cadera.rotation.z * 0.3;
-      }
-      // ojos: pequeños movimientos y parpadeo
-      mirada -= dt; if (mirada < 0) { mirada = HG.rnd(0.6, 2.2); mirarA = HG.rnd(-0.2, 0.2); }
-      for (const o of h.ojos) o.rotation.y = HG.lerp(o.rotation.y, mirarA, Math.min(1, dt * 20));
-      parpadeo -= dt; const cerrado = parpadeo < 0.12;
-      if (parpadeo < 0) parpadeo = HG.rnd(2, 5);
-      for (const pa of h.parpados) pa.rotation.x = cerrado ? 1.35 : PARPADO;
-    },
-  };
+  return { grupo: raiz, def: d, huesos: h, pico(v) { pico.visible = v; }, animar: HG.animacion(h, cadera, col, 0.97, { reposoZ: 0.1 }) };
 };
+
+// Si el personaje tiene malla 3D (d.malla) se usa esa; mientras se descarga se ve el de código y se cambia solo
+HG.crearPersonaje = (d) => {
+  if (!d.malla || !HG.Mallas) return crearProcedural(d);
+  const grupo = new T.Group(); let dentro = null, picando = false;
+  const poner = x => { if (dentro) grupo.remove(dentro.grupo); dentro = x; grupo.add(x.grupo); x.pico(picando); };
+  const w = { grupo, def: d, get huesos() { return dentro.huesos; }, pico(v) { picando = v; dentro.pico(v); }, animar(e, t, dt) { dentro.animar(e, t, dt); } };
+  if (HG.Mallas.listo(d.malla)) poner(HG.Mallas.crear(d));
+  else { poner(crearProcedural(d)); HG.Mallas.cargar(d.malla).then(() => poner(HG.Mallas.crear(d))).catch(() => {}); }
+  return w;
+};
+
+// Robot de la tienda (modelo 3D propio: modelos/personajes/robot.bin)
+HG.ROBOT = { id: "robot", malla: "robot", corto: "Robot", nombre: "Robot de la tienda", altura: 2.0, k: 1.0, semilla: 5, peinado: "", ojos: "#3f86d0", labios: "#aa8880", traje: "#cdd2d9", panel: "#4a5662", piel: "#e6eaee", pelo: "#2a3440", guantes: "#2a3440", botas: "#2a3440", cuello: "#4a5662", mochila: "#4a5662", rugosidad: 0.35, metal: 0.55 };
 
 // NPC genérico de la estación con colores aleatorios
 const TRAJES = ["#2f5ea6", "#3f7b3c", "#e2721f", "#8a3cff", "#c43c3c", "#3a3f48", "#1f8a7a", "#d9b23a"];

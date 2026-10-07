@@ -17,4 +17,4 @@ Juego de naves en 3D para el navegador, en español.
 - Esc: pausa y ajustes.
 
 ## Créditos
-Música «Interestelar» (Suno) y cinemáticas (Magnific) de Malik. Robot de la tienda: RobotExpressive de Tomás Laulhé (CC0), de los ejemplos de three.js. Motor 3D: three.js (MIT).
+Música «Interestelar» (Suno) y cinemáticas (Magnific) de Malik. Personajes y robot de la tienda: modelos 3D de Malik. Fuente de las animaciones: huesos propios. Motor 3D: three.js (MIT).
