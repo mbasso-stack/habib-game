@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Visor de personajes</title>
+<style>html,body{margin:0;background:#1d222b;overflow:hidden}#lienzo,#rejilla{position:absolute;left:0;top:0}#rejilla{pointer-events:none}video,#fps{display:none}</style></head>
+<body><canvas id="lienzo"></canvas><canvas id="rejilla"></canvas><video id="video"></video><div id="fps"></div>
+<script src="../lib/three.min.js"></script><script src="../lib/BufferGeometryUtils.js"></script><script src="../lib/postpro.js"></script><script src="../lib/ImprovedNoise.js"></script>
+<script>window.HG = { BASE: "../" };</script>
+<script src="../js/datos.js"></script><script src="../js/motor.js"></script><script src="../js/personajes.js"></script><script src="../js/mallas.js"></script>
+<script>
+// Visor para revisar los personajes horneados. Parámetros (en la dirección):
+//   ids=haluski,kenji   modo=color|zona|parte|hueso|sombra   e=quieto|andar|correr|saltar|picar|saludar|pilotar   t=1.3
+//   vista=frente|lado|espalda|tres|cara|caralado|manos   ry=0   rejilla=1   norm=1 (altura 1: coordenadas del ajuste)   sincara=1
+//   w=1200&h=800   ventana=x0,x1,y0,y1 (vistas ortográficas)   paso=0.01 (separación de la rejilla)
+const T = THREE, Q = new URLSearchParams(location.search), num = (k, d) => Q.has(k) ? +Q.get(k) : d;
+const W = num("w", 1200), H = num("h", 800);
+HG.renderer.setPixelRatio(1); HG.renderer.setSize(W, H, false);
+const lz = document.getElementById("lienzo"); lz.style.width = W + "px"; lz.style.height = H + "px";
+const rj = document.getElementById("rejilla"); rj.width = W; rj.height = H;
+const ids = (Q.get("ids") || "haluski").split(","), modo = Q.get("modo") || "", estado = Q.get("e") || "quieto", t = num("t", 1.3), vista = Q.get("vista") || "frente";
+const defs = ids.map(id => {
+  const d = id === "robot" ? Object.assign({}, HG.ROBOT) : Object.assign({}, HG.PERSONAJES.find(p => p.id === id) || { id, malla: id, altura: 1.8 });
+  d.malla = id; if (Q.get("norm") === "1") d.altura = 1; return d;
+});
+const esc = new T.Scene(); esc.background = new T.Color(0x1d222b);
+esc.environment = HG.envOscuro();
+esc.add(new T.HemisphereLight(HG.lin("#dfe8ff"), HG.lin("#3a3530"), 0.55));
+const clave = new T.DirectionalLight(HG.lin("#fff3e4"), 1.9); clave.position.set(2.5, 4, 5); esc.add(clave);
+const borde = new T.DirectionalLight(HG.lin("#9fd4ff"), 0.9); borde.position.set(-3, 2.5, -3); esc.add(borde);
+const relleno = new T.DirectionalLight(HG.lin("#ffd9b8"), 0.45); relleno.position.set(-3, 1, 3); esc.add(relleno);
+Promise.all(defs.map(d => HG.Mallas.cargar(d.malla))).then(() => {
+  const sep = num("sep", defs[0].altura * 0.75);
+  const ps = defs.map((d, i) => {
+    const p = HG.Mallas.crear(d, { modo, sinCara: Q.get("sincara") === "1" });
+    p.grupo.position.x = (i - (defs.length - 1) / 2) * sep; p.grupo.rotation.y = num("ry", 0); esc.add(p.grupo);
+    p.animar(estado, t, 0.016); return p;
+  });
+  esc.updateMatrixWorld(true);
+  const A = defs[0].altura, n = defs.length, J0 = HG.Mallas.listo(defs[0].malla) && null;
+  let cam, ventana = null;
+  const orto = v => { ventana = v; const c = new T.OrthographicCamera(v[0], v[1], v[3], v[2], -50, 50); c.position.set(0, 0, 10); c.lookAt(0, 0, 0); return c; };
+  const aspecto = W / H;
+  if (Q.has("ventana")) {
+    const v = Q.get("ventana").split(",").map(Number);
+    cam = orto(v);
+    if (vista === "caralado" || vista === "lado") { cam.position.set(10, 0, 0); cam.lookAt(0, 0, 0); }
+    if (vista === "espalda") { cam.position.set(0, 0, -10); cam.lookAt(0, 0, 0); }
+  } else if (vista === "cara" || vista === "caralado") {
+    const yC = 0.9 * A, alto = 0.17 * A;
+    cam = orto([-alto * aspecto / 2, alto * aspecto / 2, yC - alto / 2, yC + alto / 2]);
+    if (vista === "caralado") { cam.position.set(10, 0, 0); cam.lookAt(0, 0, 0); }
+  } else if (vista === "frente" || vista === "lado" || vista === "espalda") {
+    const alto = 1.08 * A, ancho = Math.max(alto * aspecto, n * sep + 0.2);
+    cam = orto([-ancho / 2, ancho / 2, -0.03 * A, alto - 0.03 * A]);
+    if (vista === "lado") { cam.position.set(10, 0, 0); cam.lookAt(0, 0, 0); }
+    if (vista === "espalda") { cam.position.set(0, 0, -10); cam.lookAt(0, 0, 0); }
+  } else {
+    cam = new T.PerspectiveCamera(28, aspecto, 0.05, 100);
+    const d = Math.max(4.2, n * 1.9) * A / 1.8;
+    if (vista === "tres") cam.position.set(d * 0.55, 1.15 * A, d * 0.85); else cam.position.set(0, 1.0 * A, d);
+    cam.lookAt(0, 0.52 * A, 0);
+  }
+  HG.renderer.render(esc, cam);
+  if (Q.get("rejilla") === "1" && ventana) {
+    const c = rj.getContext("2d"), v = ventana, paso = num("paso", 0.01), lateral = vista === "lado" || vista === "caralado";
+    const X = x => (x - v[0]) / (v[1] - v[0]) * W, Y = y => (v[3] - y) / (v[3] - v[2]) * H;
+    c.font = "11px monospace"; c.lineWidth = 1;
+    for (let x = Math.ceil(v[0] / paso) * paso; x <= v[1] + 1e-9; x += paso) {
+      const fuerte = Math.abs(Math.round(x / (paso * 5)) * paso * 5 - x) < 1e-9;
+      c.strokeStyle = fuerte ? "rgba(120,200,255,0.55)" : "rgba(120,200,255,0.18)"; c.beginPath(); c.moveTo(X(x) + 0.5, 0); c.lineTo(X(x) + 0.5, H); c.stroke();
+      if (fuerte) { c.fillStyle = "#ffd36b"; c.fillText((lateral ? "z" : "x") + (x / A).toFixed(3), X(x) + 2, 12); }
+    }
+    for (let y = Math.ceil(v[2] / paso) * paso; y <= v[3] + 1e-9; y += paso) {
+      const fuerte = Math.abs(Math.round(y / (paso * 5)) * paso * 5 - y) < 1e-9;
+      c.strokeStyle = fuerte ? "rgba(120,200,255,0.55)" : "rgba(120,200,255,0.18)"; c.beginPath(); c.moveTo(0, Y(y) + 0.5); c.lineTo(W, Y(y) + 0.5); c.stroke();
+      if (fuerte) { c.fillStyle = "#ffd36b"; c.fillText("y" + (y / A).toFixed(3), 2, Y(y) - 2); }
+    }
+  }
+  window.listo = true;
+}).catch(e => { document.title = "ERROR " + e.message; window.listo = true; window.error = e.message; });
+</script></body></html>

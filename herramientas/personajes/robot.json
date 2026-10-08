@@ -1,0 +1,48 @@
+{
+ "J": {
+  "cad": 0.38,
+  "ing": 0.35,
+  "rod": 0.19,
+  "tob": 0.06,
+  "cin": 0.5,
+  "cue": 0.8,
+  "hom": [
+   0.21,
+   0.73
+  ],
+  "cod": [
+   0.225,
+   0.55
+  ],
+  "mun": [
+   0.225,
+   0.37
+  ],
+  "xp": 0.095,
+  "bota": 0.08,
+  "manoFin": 0.26
+ },
+ "radios": {
+  "brazo": [
+   0.045,
+   0.04,
+   0.036
+  ],
+  "pierna": 0.075
+ },
+ "axila": -0.005,
+ "pelo": {
+  "frente": 0.955,
+  "sien": 0.935,
+  "nuca": 0.9,
+  "zCara": 0.0,
+  "anchoCara": 0.06,
+  "lateral": 0.93
+ },
+ "color": {
+  "relieve": 0.0045
+ },
+ "zonas": [],
+ "cara": {},
+ "tieneCara": false
+}
