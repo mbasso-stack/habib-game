@@ -691,12 +691,17 @@ HG.ROBOT = { id: "robot", malla: "robot", corto: "Robot", nombre: "Robot de la t
 const TRAJES = ["#2f5ea6", "#3f7b3c", "#e2721f", "#8a3cff", "#c43c3c", "#3a3f48", "#1f8a7a", "#d9b23a"];
 const PIELES = ["#f1c9a5", "#d9a27e", "#b07850", "#7a4e30", "#e3b48e"];
 const PELOS = ["#17171b", "#4a3222", "#dcb468", "#a9a9a9", "#7a2a1a"];
+// Los paseantes usan los modelos 3D con colores al azar (se ven distintos de los personajes principales)
+const MODELOS_NPC = ["piloto", "astro", "haluski", "kenji", "bruno", "nadia"];
 HG.personajeAleatorio = (sem) => {
   const r = HG.semilla(sem), p = a => a[Math.floor(r() * a.length)];
-  const traje = p(TRAJES), piel = p(PIELES), mujer = r() < 0.4;
-  return { id: "npc" + sem, npc: true, corto: "", nombre: p(HG.PILOTOS_NPC), piel, pelo: p(PELOS), peinado: p(mujer ? ["rizos", "atras", "puntas"] : ["puntas", "rizos", "atras", "cresta"]), barba: !mujer && r() < 0.3 ? "corta" : null,
-    ojos: p(["#3d7fc4", "#5a3a22", "#3b2a1e", "#4a7a3a"]), labios: tono(new T.Color(piel).lerp(new T.Color("#b0504a"), 0.45).getStyle(), 0.95), traje, panel: tono(traje, 0.75), cuello: "#4a4f57", detalle: "#3a414c",
-    guantes: "#5b6068", botas: "#2a2c31", mochila: p(["#8f959c", "#34373d", traje]), arnes: r() < 0.4 ? "#22242a" : null, rayas: r() < 0.4, mujer,
-    altura: (mujer ? 1.62 : 1.7) + r() * 0.2, k: (mujer ? 0.88 : 0.95) + r() * 0.15, semilla: sem };
+  const malla = MODELOS_NPC[sem % MODELOS_NPC.length], mujer = malla === "nadia";
+  const traje = p(TRAJES), piel = p(PIELES), pelo = p(PELOS), ojos = p(["#3d7fc4", "#5a3a22", "#3b2a1e", "#4a7a3a"]);
+  const labios = tono(new T.Color(piel).lerp(new T.Color("#b0504a"), 0.45).getStyle(), 0.95), botas = p(["#2a2c31", "#3a2e24", "#1d2027"]);
+  return { id: "npc" + sem, npc: true, malla, corto: "", nombre: p(HG.PILOTOS_NPC), piel, pelo, ojos, labios, traje, mujer,
+    peinado: p(mujer ? ["rizos", "atras", "puntas"] : ["puntas", "rizos", "atras", "cresta"]), barba: !mujer && r() < 0.3 ? "corta" : null,
+    panel: tono(traje, 0.7), cuello: "#4a4f57", detalle: "#3a414c", guantes: "#5b6068", botas, mochila: p(["#8f959c", "#34373d", traje]), rayas: r() < 0.4,
+    paleta: { traje, panel: tono(traje, 0.68), piel, pelo, ceja: tono(pelo, 0.8), ojos, labios, botas, guantes: p(["#3a3f47", "#5b6068", "#2a2c31", tono(traje, 0.5)]), mochila: p(["#8f959c", "#34373d", tono(traje, 0.8)]) },
+    altura: (mujer ? 1.64 : 1.72) + r() * 0.16, k: 1, semilla: sem };
 };
 })();

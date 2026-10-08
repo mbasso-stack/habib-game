@@ -33,7 +33,8 @@ function leer(buf, meta) {
 // Paleta: la del modelo (ajustada en herramientas/personajes/<id>.json) con lo que cambie el personaje (los NPC traen la suya)
 function paleta(d, M) {
   const p = Object.assign({ traje: "#888c94", panel: "#5d636d", detalle: "#2b2f36", guantes: "#3a3f47", botas: "#2c2f35", cuello: "#5d636d", mochila: "#5d636d",
-    piel: "#d8a986", pelo: "#3a2a1c", metal: "#aeb5bf", acento: "#4fd0ff", visor: "#0d1522", luz: "#7fe6ff", labios: "#b0625a", ceja: "#3a2a1c" }, M.meta.paleta || {}, d.paleta || {});
+    piel: "#d8a986", pelo: "#3a2a1c", metal: "#aeb5bf", acento: "#4fd0ff", visor: "#0d1522", luz: "#7fe6ff", labios: "#b0625a", ceja: "#3a2a1c" },
+    ...["traje", "panel", "detalle", "guantes", "botas", "cuello", "mochila", "piel", "pelo", "labios"].filter(z => d[z]).map(z => ({ [z]: d[z] })), M.meta.paleta || {}, d.paleta || {});
   if (!p.suela) p.suela = "#" + new T.Color(p.botas).multiplyScalar(0.45).getHexString();
   return ZONAS.map(z => HG.lin(p[z] || "#888888"));
 }
