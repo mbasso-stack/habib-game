@@ -26,7 +26,7 @@ esc.add(new T.HemisphereLight(HG.lin("#dfe8ff"), HG.lin("#3a3530"), 0.55));
 const clave = new T.DirectionalLight(HG.lin("#fff3e4"), 1.9); clave.position.set(2.5, 4, 5); esc.add(clave);
 const borde = new T.DirectionalLight(HG.lin("#9fd4ff"), 0.9); borde.position.set(-3, 2.5, -3); esc.add(borde);
 const relleno = new T.DirectionalLight(HG.lin("#ffd9b8"), 0.45); relleno.position.set(-3, 1, 3); esc.add(relleno);
-Promise.all(defs.map(d => HG.Mallas.cargar(d.malla))).then(() => {
+Promise.all(defs.map(d => HG.Mallas.cargar(d.malla))).then(async () => {
   const sep = num("sep", defs[0].altura * 0.75);
   const ps = defs.map((d, i) => {
     const p = HG.Mallas.crear(d, { modo, sinCara: Q.get("sincara") === "1" });
@@ -58,6 +58,7 @@ Promise.all(defs.map(d => HG.Mallas.cargar(d.malla))).then(() => {
     if (vista === "tres") cam.position.set(d * 0.55, 1.15 * A, d * 0.85); else cam.position.set(0, 1.0 * A, d);
     cam.lookAt(0, 0.52 * A, 0);
   }
+  await new Promise(r => setTimeout(r, 1800)); // espera a las texturas
   HG.renderer.render(esc, cam);
   if (Q.get("rejilla") === "1" && ventana) {
     const c = rj.getContext("2d"), v = ventana, paso = num("paso", 0.01), lateral = vista === "lado" || vista === "caralado";

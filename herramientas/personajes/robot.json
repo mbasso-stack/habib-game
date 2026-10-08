@@ -44,5 +44,18 @@
  },
  "zonas": [],
  "cara": {},
- "tieneCara": false
+ "tieneCara": false,
+ "paleta": {
+  "traje": "#e9edf2",
+  "panel": "#2a3038",
+  "detalle": "#2a3038",
+  "guantes": "#2a3038",
+  "botas": "#2a3038",
+  "cuello": "#2a3038",
+  "mochila": "#e9edf2",
+  "piel": "#e9edf2",
+  "pelo": "#e9edf2",
+  "metal": "#c9ced6",
+  "suela": "#15181c"
+ }
 }

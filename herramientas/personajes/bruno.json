@@ -42,6 +42,64 @@
  "color": {
   "relieve": 0.0045
  },
- "zonas": [],
- "cara": {}
+ "zonas": [
+  {
+   "zona": "pelo",
+   "caja": [
+    -0.065,
+    0.065,
+    0.83,
+    0.885,
+    0.02,
+    0.3
+   ],
+   "si": [
+    "panel",
+    "cuello",
+    "traje",
+    "detalle"
+   ]
+  }
+ ],
+ "cara": {
+  "cx": 0.004,
+  "ojo": [
+   0.021,
+   0.8945
+  ],
+  "ojoW": 0.02,
+  "ojoH": 0.0068,
+  "ceja": 0.9035,
+  "cejaGrosor": 0.004,
+  "fosas": [
+   0.006,
+   0.8775
+  ],
+  "boca": [
+   0,
+   0.866
+  ],
+  "bocaW": 0.024,
+  "ventana": [
+   -0.071,
+   0.079,
+   0.836,
+   0.9335
+  ]
+ },
+ "paleta": {
+  "traje": "#c0661f",
+  "panel": "#2a2c31",
+  "detalle": "#2a2c31",
+  "guantes": "#2a2c31",
+  "botas": "#2a2c31",
+  "cuello": "#2a2c31",
+  "mochila": "#34373d",
+  "metal": "#9aa1ab",
+  "piel": "#d6a482",
+  "pelo": "#4a3222",
+  "ceja": "#3a2618",
+  "ojos": "#4a3020",
+  "labios": "#a8665c"
+ }
 }

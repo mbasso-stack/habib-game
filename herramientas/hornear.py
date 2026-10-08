@@ -35,19 +35,28 @@ def sstep(a, b, x):
 
 # ---------------------------------------------------------------- lectura y limpieza
 def leer_obj(ruta):
-    V, F = [], []
+    """Vértices, triángulos y la coordenada de textura de cada esquina (o None si el modelo no trae)."""
+    V, VT, F, FT = [], [], [], []
     with open(ruta) as f:
         for l in f:
             if l.startswith("v "):
                 V.append([float(x) for x in l.split()[1:4]])
+            elif l.startswith("vt "):
+                VT.append([float(x) for x in l.split()[1:3]])
             elif l.startswith("f "):
-                ids = [int(t.split("/")[0]) - 1 for t in l.split()[1:]]
+                tr = [t.split("/") for t in l.split()[1:]]
+                ids = [int(t[0]) - 1 for t in tr]
+                tx = [int(t[1]) - 1 if len(t) > 1 and t[1] else -1 for t in tr]
                 for j in range(1, len(ids) - 1):
-                    F.append([ids[0], ids[j], ids[j + 1]])
-    return np.array(V, dtype=np.float64), np.array(F, dtype=np.int64)
+                    F.append([ids[0], ids[j], ids[j + 1]]); FT.append([tx[0], tx[j], tx[j + 1]])
+    F = np.array(F, dtype=np.int64)
+    UV = None
+    if VT and min(min(t) for t in FT) >= 0:
+        UV = np.array(VT, dtype=np.float64)[np.array(FT)]   # (triángulos, 3, 2)
+    return np.array(V, dtype=np.float64), F, UV
 
 
-def soldar(V, F, tol=1e-6):
+def soldar(V, F, tol=1e-6, X=None):
     clave = np.round(V / tol).astype(np.int64)
     _, inv = np.unique(clave, axis=0, return_inverse=True)
     inv = inv.reshape(-1)
@@ -57,7 +66,9 @@ def soldar(V, F, tol=1e-6):
     ok = (F2[:, 0] != F2[:, 1]) & (F2[:, 1] != F2[:, 2]) & (F2[:, 0] != F2[:, 2])
     F2 = F2[ok]
     a = np.linalg.norm(np.cross(V2[F2[:, 1]] - V2[F2[:, 0]], V2[F2[:, 2]] - V2[F2[:, 0]]), axis=1)
-    return V2, F2[a > 1e-14]
+    if X is not None:
+        X = X[ok][a > 1e-14]
+    return V2, F2[a > 1e-14], X
 
 
 def compactar(V, F):
@@ -73,18 +84,18 @@ def normalizar(V):
     return (V - [cx, y0, cz]) / H
 
 
-def quitar_cajas(V, F, cajas):
+def quitar_cajas(V, F, cajas, X=None):
     if not cajas:
-        return V, F
+        return V, F, X
     malo = np.zeros(len(F), dtype=bool)
     for c in cajas:
         x0, x1, y0, y1, z0, z1 = c
         dentro = (V[:, 0] >= x0) & (V[:, 0] <= x1) & (V[:, 1] >= y0) & (V[:, 1] <= y1) & (V[:, 2] >= z0) & (V[:, 2] <= z1)
         malo |= dentro[F].any(axis=1)
-    return compactar(V, F[~malo])
+    return (*compactar(V, F[~malo]), None if X is None else X[~malo])
 
 
-def quitar_sueltas(V, F, minimo):
+def quitar_sueltas(V, F, minimo, X=None):
     """Quita las piezas sueltas pequeñas (restos de la hoja de personajes)."""
     p = np.arange(len(V))
     def raiz(a):
@@ -97,7 +108,8 @@ def quitar_sueltas(V, F, minimo):
     r = np.array([raiz(i) for i in range(len(V))])
     caras_r = r[F[:, 0]]
     cuenta = np.bincount(caras_r, minlength=len(V))
-    return compactar(V, F[cuenta[caras_r] >= minimo])
+    ok = cuenta[caras_r] >= minimo
+    return (*compactar(V, F[ok]), None if X is None else X[ok])
 
 
 # ---------------------------------------------------------------- geometría básica
@@ -111,7 +123,10 @@ def normales_vertice(V, F, fn, area):
     n = np.zeros_like(V)
     for k in range(3):
         np.add.at(n, F[:, k], fn * area[:, None])
-    return n / np.maximum(np.linalg.norm(n, axis=1), 1e-20)[:, None]
+    L = np.linalg.norm(n, axis=1)
+    n = n / np.maximum(L, 1e-20)[:, None]
+    n[L < 1e-12] = [0, 1, 0]
+    return n
 
 
 def aristas(F):
@@ -166,7 +181,7 @@ def oclusion(V, F, vn, res=200, rayos=40, pasos=22):
     r1, r2 = rng.random(rayos), rng.random(rayos)
     loc = np.stack([np.sqrt(r1) * np.cos(2 * np.pi * r2), np.sqrt(r1) * np.sin(2 * np.pi * r2), np.sqrt(1 - r1)], axis=1)
     t1 = np.where(np.abs(vn[:, 1:2]) < 0.9, np.cross(vn, [0, 1, 0]), np.cross(vn, [1, 0, 0]))
-    t1 /= np.linalg.norm(t1, axis=1)[:, None]
+    t1 /= np.maximum(np.linalg.norm(t1, axis=1), 1e-12)[:, None]
     t2 = np.cross(vn, t1)
     dirs = loc[None, :, 0:1] * t1[:, None, :] + loc[None, :, 1:2] * t2[:, None, :] + loc[None, :, 2:3] * vn[:, None, :]
     origen = V + vn * 2.2 * h
@@ -631,11 +646,13 @@ def detectar_cara(V, F, fn, J, cfg):
 def hornear(id_, depurar=None):
     ruta_cfg = os.path.join(RAIZ, "herramientas", "personajes", id_ + ".json")
     cfg = json.load(open(ruta_cfg))
-    V, F = leer_obj(os.path.join(RAIZ, "herramientas", "fuentes", id_ + ".obj"))
-    V, F = soldar(V, F)
+    V, F, UV = leer_obj(os.path.join(RAIZ, "herramientas", "fuentes", id_ + ".obj"))
+    V, F, UV = soldar(V, F, X=UV)
     V = normalizar(V)
-    V, F = quitar_cajas(V, F, cfg.get("quitar"))
-    V, F = quitar_sueltas(V, F, cfg.get("piezaMinima", 40))
+    if cfg.get("girar"):  # el modelo mira hacia -z: se gira media vuelta
+        V[:, 0] *= -1; V[:, 2] *= -1
+    V, F, UV = quitar_cajas(V, F, cfg.get("quitar"), UV)
+    V, F, UV = quitar_sueltas(V, F, cfg.get("piezaMinima", 40), UV)
     J = cfg["J"]; R = cfg["radios"]
     fn, area = normales_cara(V, F)
     vn = normales_vertice(V, F, fn, area)
@@ -656,6 +673,20 @@ def hornear(id_, depurar=None):
     parte[piernas & (V[:, 0] >= 0)] = PIERNA_I
     # rasgar y tapar
     V2, F2, parte2, origen, es_tapa, n_tapas = rasgar(V, F, parte, J, cfg)
+    if UV is not None:  # las tapas toman la textura de las esquinas vecinas; el centro, la media
+        uv_v = np.zeros((len(V2), 2)); hay = np.zeros(len(V2), dtype=bool)
+        for i in range(len(F)):
+            for k in range(3):
+                uv_v[F2[i, k]] = UV[i, k]; hay[F2[i, k]] = True
+        UVt = [UV]
+        for t in F2[len(F):]:
+            if not hay[t[2]]:
+                vec = [u for u in F2[len(F):] if u[2] == t[2]]
+                uv_v[t[2]] = np.mean([uv_v[u[0]] for u in vec], axis=0); hay[t[2]] = True
+            UVt.append(uv_v[t][None])
+        UV2 = np.concatenate(UVt)
+    else:
+        UV2 = None
     sombra2 = np.where(origen >= 0, sombra[np.maximum(origen, 0)], 0.6)
     alto2 = np.where(origen >= 0, alto[np.maximum(origen, 0)], 0.0)
     si, sw = pesos_parte(V2, parte2, J)
@@ -680,14 +711,15 @@ def hornear(id_, depurar=None):
     N = normales_esquinas(V2, F2, fn2, area2, ang)
     # vértices finales: uno por (vértice, normal)
     clave = {}
-    vpos, vnor, vsi, vsw, vsom, vpar, caras = [], [], [], [], [], [], []
+    vpos, vnor, vsi, vsw, vsom, vpar, caras, vuv = [], [], [], [], [], [], [], []
     for i, t in enumerate(F2):
         tri = []
         for k, v in enumerate(t):
             nq = tuple(np.round(N[i, k] * 60).astype(int))
-            kk = (v, nq)
+            kk = (v, nq, None if UV2 is None else tuple(np.round(UV2[i, k] * 8192).astype(int)))
             if kk not in clave:
                 clave[kk] = len(vpos)
+                vuv.append(UV2[i, k] if UV2 is not None else (0, 0))
                 vpos.append(V2[v]); vnor.append(N[i, k]); vsi.append(si[v]); vsw.append(sw[v]); vsom.append(sombra2[v]); vpar.append(parte2[v])
             tri.append(clave[kk])
         caras.append(tri)
@@ -712,6 +744,9 @@ def hornear(id_, depurar=None):
     out += caras.astype(np.uint16).tobytes()
     out += zona.astype(np.uint8).tobytes()
     meta = {"J": J, "zonas": ZONAS, "paleta": cfg.get("paleta", {})}
+    if UV2 is not None and cfg.get("texturas"):
+        out += np.round(np.clip(np.array(vuv), 0, 1) * 65535).astype(np.uint16).tobytes()
+        meta["textura"] = copiar_texturas(id_, cfg["texturas"])
     if cara:
         g = cara
         meta["cara"] = {"c": g["c"], "ventana": g["ventana"], "GX": g["GX"], "GY": g["GY"]}
@@ -726,6 +761,28 @@ def hornear(id_, depurar=None):
         os.makedirs(depurar, exist_ok=True)
         imagen_cara(cara, os.path.join(depurar, id_ + "_cara.png"))
     return resumen
+
+
+def copiar_texturas(id_, tx):
+    """Pasa las texturas del modelo al juego: color y relieve en JPG, rugosidad (G) y metal (B) juntos en uno."""
+    from PIL import Image
+    base = os.path.join(RAIZ, "herramientas", "fuentes")
+    destino = os.path.join(RAIZ, "modelos", "personajes")
+    tam = tx.get("tam", 2048)
+    res = {}
+    if "color" in tx:
+        Image.open(os.path.join(base, tx["color"])).convert("RGB").resize((tam, tam), Image.LANCZOS).save(os.path.join(destino, id_ + "_color.jpg"), quality=88)
+        res["color"] = id_ + "_color.jpg"
+    if "normal" in tx:
+        Image.open(os.path.join(base, tx["normal"])).convert("RGB").resize((tam // 2, tam // 2), Image.LANCZOS).save(os.path.join(destino, id_ + "_normal.jpg"), quality=90)
+        res["normal"] = id_ + "_normal.jpg"
+    if "rugosidad" in tx or "metal" in tx:
+        t2 = tam // 2
+        r = Image.open(os.path.join(base, tx["rugosidad"])).convert("L").resize((t2, t2)) if "rugosidad" in tx else Image.new("L", (t2, t2), 180)
+        m = Image.open(os.path.join(base, tx["metal"])).convert("L").resize((t2, t2)) if "metal" in tx else Image.new("L", (t2, t2), 0)
+        Image.merge("RGB", (Image.new("L", (t2, t2), 0), r, m)).save(os.path.join(destino, id_ + "_rm.jpg"), quality=90)
+        res["rm"] = id_ + "_rm.jpg"
+    return res
 
 
 def imagen_cara(cara, ruta):
