@@ -30,7 +30,7 @@
   ],
   "pierna": 0.075
  },
- "axila": -0.005,
+ "axila": 0.09,
  "pelo": {
   "frente": 0.955,
   "sien": 0.935,
@@ -58,6 +58,21 @@
     "cuello",
     "traje",
     "detalle"
+   ]
+  },
+  {
+   "zona": "mochila",
+   "caja": [
+    -0.2,
+    0.2,
+    0.78,
+    1.0,
+    -0.4,
+    -0.06
+   ],
+   "si": [
+    "piel",
+    "pelo"
    ]
   }
  ],

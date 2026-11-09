@@ -5,6 +5,8 @@
 (function () {
 const HG = window.HG, T = THREE;
 
+// Las caras se ven tal cual vienen esculpidas en cada modelo; los rasgos pintados quedan desactivados
+HG.RASGOS_PINTADOS = false;
 HG.MALLAS = { haluski: {}, rayo: {}, nadia: {}, kenji: {}, bruno: {}, astro: {}, piloto: {}, robot: {} };
 // Zonas de color (mismo orden que en hornear.py) y material de cada una: 0 tela/piel · 1 metal · 2 luz
 const ZONAS = ["traje", "panel", "detalle", "guantes", "botas", "suela", "cuello", "mochila", "piel", "pelo", "metal", "acento", "visor", "luz", "labios", "ceja"];
@@ -81,7 +83,7 @@ function geometria(d, modo) {
   return geos[clave] = g;
 }
 const mats = {};
-const cargaTex = (archivo, srgb) => { const t = new T.TextureLoader().load(`${HG.BASE || ""}modelos/personajes/${archivo}?v=8`); if (srgb) t.encoding = T.sRGBEncoding; t.anisotropy = 8; return t; };
+const cargaTex = (archivo, srgb) => { const t = new T.TextureLoader().load(`${HG.BASE || ""}modelos/personajes/${archivo}?v=9`); if (srgb) t.encoding = T.sRGBEncoding; t.anisotropy = 8; return t; };
 // Modelo con texturas propias (color, relieve, rugosidad y metal)
 function materialTexturas(M) {
   const tx = M.meta.textura, m = new T.MeshStandardMaterial({ vertexColors: true, skinning: true, side: T.DoubleSide, roughness: 1, metalness: 1 });
@@ -221,8 +223,8 @@ HG.Mallas = {
   cargar(id) {
     if (cache[id]) return Promise.resolve(cache[id]);
     return esperas[id] || (esperas[id] = Promise.all([
-      fetch(`${HG.BASE || ""}modelos/personajes/${id}.json?v=8`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
-      fetch(`${HG.BASE || ""}modelos/personajes/${id}.bin?v=8`).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }),
+      fetch(`${HG.BASE || ""}modelos/personajes/${id}.json?v=9`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
+      fetch(`${HG.BASE || ""}modelos/personajes/${id}.bin?v=9`).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }),
     ]).then(([meta, buf]) => cache[id] = leer(buf, meta)));
   },
   // Esqueleto y malla de un personaje; devuelve lo mismo que HG.crearPersonaje. opc.modo: "zona", "parte", "hueso" o "sombra" para revisar
@@ -245,7 +247,7 @@ HG.Mallas = {
     malla.bind(new T.Skeleton(huesos));
     const pico = HG.hacerPico(h.manos[0]), anim = HG.animacion(h, cadera, columna, J.cad * A, { reposoZ: 0.02, mano: true });
     let animar = anim;
-    if (M.meta.cara && M.meta.cara.c.ojo && !opc.sinCara) { // ojos, cejas, nariz y boca, que parpadean
+    if (HG.RASGOS_PINTADOS && M.meta.cara && M.meta.cara.c.ojo && !opc.sinCara) { // ojos, cejas, nariz y boca, que parpadean
       const tx = caraTex(d, M), mat = new T.MeshStandardMaterial({ map: tx.abierta, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, skinning: true, roughness: 0.55, metalness: 0 });
       const cara = new T.SkinnedMesh(geometriaCara(d), mat); cara.frustumCulled = false; cara.renderOrder = 2; raiz.add(cara);
       raiz.updateMatrixWorld(true); cara.bind(malla.skeleton);

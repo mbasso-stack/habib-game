@@ -22,7 +22,7 @@ renderer.toneMapping = T.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.3;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = T.PCFSoftShadowMap;
-const camara = new T.PerspectiveCamera(70, 16 / 9, 0.1, 40000);
+const camara = new T.PerspectiveCamera(70, 16 / 9, 0.1, 120000);
 HG.renderer = renderer; HG.camara = camara; HG.lienzo = lienzo;
 function ajustar() {
   const w = innerWidth, h = innerHeight;
@@ -192,9 +192,16 @@ HG.texRoca = v => TEXR[v] || (TEXR[v] = HG.lienzoTex(256, 256, (c, w, h) => {
 }));
 const MATR = {};
 HG.matRoca = v => MATR[v] || (MATR[v] = new T.MeshStandardMaterial({ map: HG.texRoca(v), bumpMap: HG.texRoca(v), bumpScale: 0.04, roughness: 1, metalness: 0 }));
+// Roca: icosaedro deformado. Cada esquina se deforma según su posición (no según el orden), así los triángulos que la
+// comparten no se separan y no quedan grietas
 HG.geoRoca = (sem, aplastar = 1) => {
-  const r = HG.semilla(sem), g = new T.IcosahedronGeometry(1, 1), p = g.attributes.position;
-  for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (0.8 + r() * 0.32), p.getY(i) * (0.8 + r() * 0.32) * aplastar, p.getZ(i) * (0.8 + r() * 0.32));
+  const g = new T.IcosahedronGeometry(1, 2), p = g.attributes.position, k = sem * 12.9898;
+  const h = (x, y, z, o) => { const v = Math.sin(x * 17.31 + y * 41.77 + z * 23.53 + k + o) * 43758.5453; return v - Math.floor(v); };
+  for (let i = 0; i < p.count; i++) {
+    const x = +p.getX(i).toFixed(4), y = +p.getY(i).toFixed(4), z = +p.getZ(i).toFixed(4);
+    const f = 0.82 + h(x, y, z, 0) * 0.28 + 0.12 * Math.sin(x * 2.1 + k) * Math.cos(z * 1.7 + k);
+    p.setXYZ(i, x * f, y * f * aplastar, z * f);
+  }
   g.computeVertexNormals(); return g;
 };
 // Planetas: relieve fractal en 3D sobre la esfera (sin costuras), continentes, polos helados y nubes aparte
@@ -210,7 +217,7 @@ function siguiente() { const fn = pendientes.shift(); if (fn) fn(); if (pendient
 HG.texPlaneta = (P, W = 1024) => TEXP[P.id + W] || (TEXP[P.id + W] = HG.lienzoTex(W, W / 2, (c, w, h) => {
   const img = c.createImageData(w, h), d = img.data, sem = P.radio * 0.013;
   const A = new T.Color(P.base), B = new T.Color(P.tierra), col = new T.Color(), tmp = new T.Color();
-  const mar = P.id === "aurora" || P.id === "onix", lava = P.id === "ignea", hielo = P.id === "glacia";
+  const mar = P.tipo === "mar", lava = P.tipo === "lava", hielo = P.tipo === "hielo";
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const [px, py, pz] = esferaUV(x / w, 1 - y / h);
     let e = fbm(px * 2.2 + sem, py * 2.2, pz * 2.2 - sem, 6) + 0.5;            // altura 0..1 aprox.
@@ -288,7 +295,7 @@ HG.aplicarAjustes = () => {
 };
 HG.partidaNueva = () => ({
   version: 1, monedas: 1000, comida: 100, naves: {}, naveActiva: -1, armas: ["laser"], equipadas: ["laser"],
-  carga: {}, planetas: {}, derrotas: 0, amigos: [], clan: null, videos: {}, creditosVistos: false, vidaNave: null, flota: 2,
+  carga: {}, planetas: {}, derrotas: 0, amigos: [], clan: null, videos: {}, creditosVistos: false, vidaNave: null, flota: 2, carbon: 0,
 });
 // Las 10 naves antiguas pasan a las 4 actuales: 0-1 → Gorrión, 2-5 → Lince, 6-8 → Fénix, 9 → Haluski Prime
 const flotaNueva = i => i <= 1 ? 0 : i <= 5 ? 1 : i <= 8 ? 2 : 3;

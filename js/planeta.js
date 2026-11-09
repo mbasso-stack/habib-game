@@ -41,7 +41,7 @@ function crearAltura() {
 }
 function construir() {
   escena = new T.Scene();
-  const hor = HG.lin(P.cielo), cen = hor.clone().multiplyScalar(0.45).lerp(HG.lin("#1a3a8a"), P.id === "ignea" || P.id === "onix" ? 0 : 0.25);
+  const hor = HG.lin(P.cielo), cen = hor.clone().multiplyScalar(0.45).lerp(HG.lin("#1a3a8a"), P.tipo === "lava" || P.id === "onix" ? 0 : 0.25);
   escena.fog = new T.Fog(hor, 140, 950); escena.userData.brillo = [0.45, 0.85]; escena.userData.exposicion = 1.2;
   const solDir = new T.Vector3(40, 60, 30).normalize();
   const matCielo = () => new T.ShaderMaterial({ uniforms: { cenit: { value: cen }, horizonte: { value: hor }, suelo: { value: HG.lin(P.suelo).multiplyScalar(0.6) }, solDir: { value: solDir }, solCol: { value: HG.lin("#fff1dc") } },
@@ -62,16 +62,16 @@ function construir() {
     const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), n = HG.fbm(x * 0.02, 7.7, z * 0.02 + k, 3);
     cc.copy(cS).lerp(cT, HG.clamp(n * 2 + 0.3, 0, 1)).multiplyScalar(0.85 + n * 0.5);
     cc.lerp(cR, sstep(0.9, 0.7, nor.getY(i)));                          // pendientes de roca
-    if (P.id !== "ignea" && P.id !== "duna") cc.lerp(cN, sstep(70, 140, y)); // nieve en las cumbres
+    if (P.tipo !== "lava" && P.tipo !== "arena") cc.lerp(cN, sstep(70, 140, y)); // nieve en las cumbres
     cols[i * 3] = cc.r; cols[i * 3 + 1] = cc.g; cols[i * 3 + 2] = cc.b;
   }
   geo.setAttribute("color", new T.BufferAttribute(cols, 3));
-  const suelo = M(geo, new T.MeshStandardMaterial({ vertexColors: true, map: texDetalle(), roughness: P.id === "glacia" ? 0.55 : 0.97, metalness: 0 }), 0, 0, 0, escena); suelo.castShadow = false;
-  if (P.id === "ignea") { // ríos de lava que brillan
-    const lava = M(new T.PlaneGeometry(2000, 2000).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ color: HG.lin("#ff4a10").multiplyScalar(2.2) }), 0, -4, 0, escena, false);
+  const suelo = M(geo, new T.MeshStandardMaterial({ vertexColors: true, map: texDetalle(), roughness: P.tipo === "hielo" ? 0.55 : 0.97, metalness: 0 }), 0, 0, 0, escena); suelo.castShadow = false;
+  if (P.tipo === "lava") { // ríos de lava que brillan
+    const lava = M(new T.PlaneGeometry(2000, 2000).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ color: HG.lin(P.tierra).multiplyScalar(2.2) }), 0, -4, 0, escena, false);
     lava.renderOrder = -1;
   }
-  M(new T.SphereGeometry(60, 48, 32), new T.MeshBasicMaterial({ map: HG.texPlaneta(HG.PLANETAS[(k + 2) % 5], 512), fog: false }), -300, 300, -700, escena, false);
+  M(new T.SphereGeometry(60, 48, 32), new T.MeshBasicMaterial({ map: HG.texPlaneta(HG.PLANETAS[(k + 3) % HG.PLANETAS.length], 512), fog: false }), -300, 300, -700, escena, false);
   // piedras y matas repartidas (instanciadas: miles con pocas llamadas)
   const piedras = new T.InstancedMesh(new T.IcosahedronGeometry(1, 0), HG.matRoca(k % 4), 1600), o = new T.Object3D();
   for (let i = 0; i < 1600; i++) {
@@ -79,10 +79,10 @@ function construir() {
     o.position.set(x, altura(x, z) + s * 0.2, z); o.rotation.set(HG.rnd(0, 6), HG.rnd(0, 6), 0); o.scale.set(s, s * HG.rnd(0.4, 0.8), s * HG.rnd(0.7, 1.2)); o.updateMatrix(); piedras.setMatrixAt(i, o.matrix);
   }
   piedras.castShadow = true; piedras.receiveShadow = true; escena.add(piedras);
-  if (P.id === "aurora" || P.id === "onix") {
+  if (P.tipo === "mar") {
     const texHierba = HG.lienzoTex(64, 64, (c, w, h) => { for (let i = 0; i < 26; i++) { const x = HG.rnd(6, 58); c.strokeStyle = `hsl(${100 + HG.rnd(-15, 15)}, 45%, ${HG.rnd(35, 60)}%)`; c.lineWidth = HG.rnd(1.5, 3); c.beginPath(); c.moveTo(x, h); c.quadraticCurveTo(x + HG.rnd(-6, 6), h * 0.5, x + HG.rnd(-12, 12), HG.rnd(4, 30)); c.stroke(); } });
     const gh = new T.PlaneGeometry(1, 1).translate(0, 0.5, 0), g2 = gh.clone().rotateY(Math.PI / 2), mata = T.BufferGeometryUtils.mergeBufferGeometries([gh, g2]);
-    const matM = new T.MeshStandardMaterial({ map: texHierba, alphaTest: 0.5, side: T.DoubleSide, roughness: 0.9, color: P.id === "onix" ? HG.lin("#6fa8ff") : new T.Color(1, 1, 1) });
+    const matM = new T.MeshStandardMaterial({ map: texHierba, alphaTest: 0.5, side: T.DoubleSide, roughness: 0.9, color: P.id === "onix" || P.id === "abismo" ? HG.lin("#6fa8ff") : new T.Color(1, 1, 1) });
     const matas = new T.InstancedMesh(mata, matM, 5000);
     for (let i = 0; i < 5000; i++) {
       const a = HG.rnd(0, 6.283), d = 4 + Math.pow(Math.random(), 0.8) * 200, x = Math.cos(a) * d, z = Math.sin(a) * d, s = HG.rnd(0.5, 1.1);

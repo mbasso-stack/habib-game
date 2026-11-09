@@ -4,10 +4,10 @@ window.HG = window.HG || {};
 
 // Cuanto más cara es la nave, mejores son sus estadísticas de serie.
 HG.NAVES = [ // id: archivo en modelos/naves · largo: tamaño en el juego · motores y canones: posiciones en fracción del largo · ala: a qué distancia del centro van las armas extra
-  { id: "gorrion", nombre: "Gorrión",       precio: 1000,   vel: 100, vida: 100,  dano: 10, bodega: 20,  huecos: 1, largo: 12, ala: 0.12, motores: [[-0.089, -0.051, 0.49], [0.084, -0.051, 0.49]], canones: [[-0.048, -0.066, -0.49], [0.046, -0.071, -0.49]] },
-  { id: "lince",   nombre: "Lince",         precio: 50000,  vel: 125, vida: 210,  dano: 18, bodega: 50,  huecos: 2, largo: 17, ala: 0.18, motores: [[-0.134, -0.031, 0.48], [0.134, -0.031, 0.48]], canones: [[-0.048, -0.068, -0.48], [0.047, -0.064, -0.48]] },
-  { id: "fenix",   nombre: "Fénix",         precio: 220000, vel: 160, vida: 520,  dano: 38, bodega: 150, huecos: 3, largo: 22, ala: 0.22, motores: [[-0.163, -0.058, 0.48], [0.155, -0.053, 0.48]], canones: [[-0.051, -0.1, -0.48], [0.049, -0.1, -0.48]] },
-  { id: "prime",   nombre: "Haluski Prime", precio: 800000, vel: 200, vida: 1000, dano: 60, bodega: 300, huecos: 4, largo: 26, ala: 0.26, motores: [[-0.13, -0.066, 0.48], [0.13, -0.069, 0.48]], canones: [[-0.052, -0.142, -0.47], [0.053, -0.142, -0.47]] },
+  { id: "gorrion", nombre: "Gorrión",       precio: 1000,   vel: 100, vida: 150,  dano: 10, bodega: 20,  huecos: 1, largo: 11, ala: 0.12, casco: "#d9dde3", detalle: "#2b3038", franja: "#4cc9f0", motores: [[-0.089, -0.051, 0.49], [0.084, -0.051, 0.49]], canones: [[-0.048, -0.066, -0.49], [0.046, -0.071, -0.49]] },
+  { id: "lince",   nombre: "Lince",         precio: 50000,  vel: 125, vida: 320,  dano: 18, bodega: 50,  huecos: 2, largo: 16, ala: 0.18, casco: "#dde0e5", detalle: "#30353e", franja: "#ff9f43", motores: [[-0.134, -0.031, 0.48], [0.134, -0.031, 0.48]], canones: [[-0.048, -0.068, -0.48], [0.047, -0.064, -0.48]] },
+  { id: "fenix",   nombre: "Fénix",         precio: 220000, vel: 160, vida: 780,  dano: 38, bodega: 150, huecos: 3, largo: 23, ala: 0.22, casco: "#1c1e23", detalle: "#3a3f48", franja: "#d4a63a", motores: [[-0.13, -0.066, 0.48], [0.13, -0.069, 0.48]], canones: [[-0.052, -0.142, -0.47], [0.053, -0.142, -0.47]] },
+  { id: "prime",   nombre: "Haluski Prime", precio: 800000, vel: 200, vida: 1500, dano: 60, bodega: 300, huecos: 4, largo: 30, ala: 0.26, casco: "#b0231b", detalle: "#1a1b1f", franja: "#efe6d2", motores: [[-0.163, -0.058, 0.48], [0.155, -0.053, 0.48]], canones: [[-0.051, -0.1, -0.48], [0.049, -0.1, -0.48]] },
 ];
 // Mejoras de cada nave: 3 ramas de 5 niveles. Coste según el precio de la nave.
 HG.RAMAS = [
@@ -43,13 +43,21 @@ HG.MINERALES = {
   vacio:     { nombre: "Cristal de vacío", precio: 1000, color: "#a0fff0" },
 };
 
+// tipo: "mar" (océanos y hierba), "arena", "hielo" o "lava"; repartidos en un mapa grande con mucha separación
 HG.PLANETAS = [
-  { id: "aurora", nombre: "Aurora", nivel: 1, radio: 420, pos: [2300, 0, -1300],   base: "#2a6fb0", tierra: "#3f9b4a", nubes: 0.35, atm: "#66aaff", cielo: "#8fc4ff", suelo: "#4f8f46", minerales: ["cuarzo", "ferrita"],     jefe: { nombre: "Corsario Vex", vida: 700, premio: 15000 } },
-  { id: "duna",   nombre: "Duna",   nivel: 2, radio: 380, pos: [-2700, 300, -2500], base: "#b8793a", tierra: "#e0b070", nubes: 0.1,  atm: "#ffaa66", cielo: "#f2b27a", suelo: "#c98d4f", minerales: ["ambar", "silice"],       jefe: { nombre: "La Tormenta Roja", vida: 1600, premio: 40000 } },
-  { id: "glacia", nombre: "Glacia", nivel: 3, radio: 460, pos: [3500, -400, -4300], base: "#a9d6ea", tierra: "#ffffff", nubes: 0.3,  atm: "#cceeff", cielo: "#bfe2f2", suelo: "#dfeef5", minerales: ["criolita", "hielo"],     jefe: { nombre: "Reina del Hielo", vida: 3200, premio: 90000 } },
-  { id: "ignea",  nombre: "Ígnea",  nivel: 4, radio: 400, pos: [-4300, 200, -5700], base: "#2b0f08", tierra: "#ff5a1a", nubes: 0,    atm: "#ff6633", cielo: "#5a1c10", suelo: "#3a1a12", minerales: ["magmatita", "obsidiana"], jefe: { nombre: "Magnus el Fundido", vida: 5600, premio: 180000 } },
-  { id: "onix",   nombre: "Ónix",   nivel: 5, radio: 500, pos: [900, 650, -7800],   base: "#1c2233", tierra: "#4a90d9", nubes: 0.2,  atm: "#4488ff", cielo: "#1a2240", suelo: "#2a3248", minerales: ["nebulita", "vacio"],     jefe: { nombre: "Almirante Sombra", vida: 9500, premio: 350000 } },
+  { id: "aurora", nombre: "Aurora", tipo: "mar",   nivel: 1, radio: 520, pos: [4500, 0, -3000],      base: "#2a6fb0", tierra: "#3f9b4a", nubes: 0.35, atm: "#66aaff", cielo: "#8fc4ff", suelo: "#4f8f46", minerales: ["cuarzo", "ferrita"],      jefe: { nombre: "Corsario Vex", vida: 385, premio: 15000 } },
+  { id: "verdia", nombre: "Verdia", tipo: "mar",   nivel: 2, radio: 560, pos: [-5500, 400, -2000],   base: "#1f6b5e", tierra: "#7cc35a", nubes: 0.4,  atm: "#7dffc8", cielo: "#a8f0d0", suelo: "#5f9e4a", minerales: ["ferrita", "ambar"],       jefe: { nombre: "Capitana Musgo", vida: 700, premio: 30000 } },
+  { id: "duna",   nombre: "Duna",   tipo: "arena", nivel: 2, radio: 480, pos: [-3000, 600, -7500],   base: "#b8793a", tierra: "#e0b070", nubes: 0.1,  atm: "#ffaa66", cielo: "#f2b27a", suelo: "#c98d4f", minerales: ["ambar", "silice"],        jefe: { nombre: "La Tormenta Roja", vida: 880, premio: 40000 } },
+  { id: "coral",  nombre: "Coral",  tipo: "mar",   nivel: 3, radio: 600, pos: [7500, -300, -8000],   base: "#1d4f9a", tierra: "#e0866a", nubes: 0.3,  atm: "#ff9fb8", cielo: "#ffc6d3", suelo: "#c9765e", minerales: ["silice", "criolita"],     jefe: { nombre: "Almirante Anémona", vida: 1400, premio: 70000 } },
+  { id: "glacia", nombre: "Glacia", tipo: "hielo", nivel: 3, radio: 560, pos: [1500, -600, -11500],  base: "#a9d6ea", tierra: "#ffffff", nubes: 0.3,  atm: "#cceeff", cielo: "#bfe2f2", suelo: "#dfeef5", minerales: ["criolita", "hielo"],      jefe: { nombre: "Reina del Hielo", vida: 1760, premio: 90000 } },
+  { id: "ceniza", nombre: "Ceniza", tipo: "arena", nivel: 4, radio: 520, pos: [-9500, 300, -9000],   base: "#4a4440", tierra: "#8a7f75", nubes: 0.15, atm: "#c9b8a8", cielo: "#8f857c", suelo: "#5f5852", minerales: ["hielo", "obsidiana"],     jefe: { nombre: "El Carbonero", vida: 2300, premio: 130000 } },
+  { id: "ignea",  nombre: "Ígnea",  tipo: "lava",  nivel: 4, radio: 500, pos: [-6000, 500, -15000],  base: "#2b0f08", tierra: "#ff5a1a", nubes: 0,    atm: "#ff6633", cielo: "#5a1c10", suelo: "#3a1a12", minerales: ["magmatita", "obsidiana"], jefe: { nombre: "Magnus el Fundido", vida: 3080, premio: 180000 } },
+  { id: "prisma", nombre: "Prisma", tipo: "hielo", nivel: 5, radio: 580, pos: [9000, 700, -15500],   base: "#6b5bd6", tierra: "#d8c8ff", nubes: 0.2,  atm: "#c39bff", cielo: "#cbb6ff", suelo: "#b8a6e8", minerales: ["magmatita", "nebulita"],  jefe: { nombre: "Doctora Cristal", vida: 4200, premio: 260000 } },
+  { id: "onix",   nombre: "Ónix",   tipo: "mar",   nivel: 5, radio: 620, pos: [1500, 1000, -19000],  base: "#1c2233", tierra: "#4a90d9", nubes: 0.2,  atm: "#4488ff", cielo: "#1a2240", suelo: "#2a3248", minerales: ["nebulita", "vacio"],      jefe: { nombre: "Almirante Sombra", vida: 5225, premio: 350000 } },
+  { id: "abismo", nombre: "Abismo", tipo: "lava",  nivel: 5, radio: 640, pos: [-12000, -500, -19500], base: "#120a1c", tierra: "#b02cff", nubes: 0,    atm: "#a040ff", cielo: "#2a1240", suelo: "#24162e", minerales: ["obsidiana", "vacio"],     jefe: { nombre: "El Devorador", vida: 6000, premio: 450000 } },
 ];
+
+HG.CARBON = { precio: 80, max: 60 }; // mina de la estación: siempre se puede ganar dinero
 
 HG.COMIDAS = [
   { id: "racion",   nombre: "Ración espacial",   precio: 50,   valor: 15,  desc: "Sabe a cartón, pero llena." },

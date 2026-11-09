@@ -6,36 +6,88 @@ const HG = window.HG, T = THREE, M = HG.malla;
 // ---------- Naves del jugador (modelos 3D de Malik: modelos/naves/<id>.bin, largo 1, morro hacia -Z) ----------
 // Se descargan al arrancar; la nave se monta al instante si ya están y, si no, aparece en cuanto llegan.
 const navesMalla = {}, navesEsperas = {}, navesGeo = {};
+const sstep = (a, b, x) => { const t = HG.clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+// Formato de las naves: nv, ni, caja (mín y máx), largo original; posiciones cuantizadas, uv, normales e índices
+function leerNave(buf) {
+  const dv = new DataView(buf), nv = dv.getUint32(0, true), ni = dv.getUint32(4, true);
+  const mn = [8, 12, 16].map(o => dv.getFloat32(o, true)), mx = [20, 24, 28].map(o => dv.getFloat32(o, true));
+  let o = 36;
+  const q = new Uint16Array(buf.slice(o, o + nv * 6)); o += nv * 6; o += nv * 4;
+  const nr = new Int8Array(buf.slice(o, o + nv * 4)); o += nv * 4;
+  const idx = new Uint16Array(buf.slice(o, o + ni * 2));
+  const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3);
+  for (let i = 0; i < nv; i++) for (let k = 0; k < 3; k++) { pos[i * 3 + k] = mn[k] + q[i * 3 + k] / 65535 * (mx[k] - mn[k]); nor[i * 3 + k] = nr[i * 4 + k] / 127; }
+  return { nv, pos, nor, idx };
+}
+// Oscurece los huecos y aclara lo que sobresale (oclusión barata por vértice)
+function cavidad(M) {
+  const P = M.pos, N = M.nor, ids = new Map(), rep = new Int32Array(M.nv);
+  for (let v = 0; v < M.nv; v++) { const k = Math.round(P[v * 3] * 3000) + "," + Math.round(P[v * 3 + 1] * 3000) + "," + Math.round(P[v * 3 + 2] * 3000); let r = ids.get(k); if (r === undefined) { r = ids.size; ids.set(k, r); } rep[v] = r; }
+  const n = ids.size, sp = new Float32Array(n * 3), sn = new Float32Array(n * 3), cnt = new Float32Array(n), sl = new Float32Array(n);
+  const arista = (a, b) => {
+    const ra = rep[a], rb = rep[b]; if (ra === rb) return;
+    for (let k = 0; k < 3; k++) { sp[ra * 3 + k] += P[b * 3 + k]; sp[rb * 3 + k] += P[a * 3 + k]; }
+    const L = Math.hypot(P[a * 3] - P[b * 3], P[a * 3 + 1] - P[b * 3 + 1], P[a * 3 + 2] - P[b * 3 + 2]); sl[ra] += L; sl[rb] += L; cnt[ra]++; cnt[rb]++;
+  };
+  for (let t = 0; t < M.idx.length; t += 3) { const a = M.idx[t], b = M.idx[t + 1], c = M.idx[t + 2]; arista(a, b); arista(b, c); arista(c, a); }
+  for (let v = 0; v < M.nv; v++) for (let k = 0; k < 3; k++) sn[rep[v] * 3 + k] += N[v * 3 + k];
+  const sombra = new Float32Array(M.nv);
+  for (let v = 0; v < M.nv; v++) {
+    const r = rep[v], c = cnt[r] || 1, L = sl[r] / c || 1, nl = Math.hypot(sn[r * 3], sn[r * 3 + 1], sn[r * 3 + 2]) || 1;
+    const d = ((sp[r * 3] / c - P[v * 3]) * sn[r * 3] + (sp[r * 3 + 1] / c - P[v * 3 + 1]) * sn[r * 3 + 1] + (sp[r * 3 + 2] / c - P[v * 3 + 2]) * sn[r * 3 + 2]) / nl / L;
+    sombra[v] = d > 0 ? 1 - 0.55 * Math.min(1, d * 2.2) : 1 + 0.18 * Math.min(1, -d * 2.2);
+  }
+  return sombra;
+}
 function cargarNave(id) {
   if (navesMalla[id]) return Promise.resolve(navesMalla[id]);
-  return navesEsperas[id] || (navesEsperas[id] = fetch(`modelos/naves/${id}.bin`).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(b => navesMalla[id] = HG.Mallas.leer(b)));
+  return navesEsperas[id] || (navesEsperas[id] = fetch(`modelos/naves/${id}.bin`).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(b => navesMalla[id] = leerNave(b)));
 }
 HG.NAVES.forEach(n => cargarNave(n.id).catch(() => {}));
 // colores base del casco (gris claro con paneles, vientre oscuro, popa de metal) y marca de las zonas de acento
 function geoNave(idx) {
   const n = HG.NAVES[idx], M = navesMalla[n.id];
   if (navesGeo[n.id]) return navesGeo[n.id];
-  const sombra = HG.Mallas.cavidad("nave:" + n.id, M), base = new Float32Array(M.nv * 3), acento = new Float32Array(M.nv);
-  const claro = HG.lin("#a9b0bb"), oscuro = HG.lin("#3a4048"), tmp = new T.Color(), ss = HG.Mallas.sstep;
+  const sombra = cavidad(M), base = new Float32Array(M.nv * 3), acento = new Float32Array(M.nv);
+  const claro = HG.lin(n.casco || "#c9ced6"), oscuro = HG.lin(n.detalle || "#3a4048"), tmp = new T.Color(), ss = sstep;
   let ancho = 0; for (let v = 0; v < M.nv; v++) ancho = Math.max(ancho, Math.abs(M.pos[v * 3]));
   for (let v = 0; v < M.nv; v++) {
     const x = M.pos[v * 3], y = M.pos[v * 3 + 1], z = M.pos[v * 3 + 2], ny = M.nor[v * 3 + 1];
     const cx = Math.floor(x * 40), cy = Math.floor(y * 40), cz = Math.floor(z * 40), h = Math.abs((Math.sin(cx * 12.9898 + cy * 78.233 + cz * 37.719) * 43758.5453) % 1);
-    tmp.copy(claro).multiplyScalar(0.86 + h * 0.2);
-    tmp.lerp(oscuro, 0.55 * ss(-0.1, -0.6, ny) + 0.6 * ss(0.4, 0.48, z));            // vientre y zona de motores
+    tmp.copy(claro).multiplyScalar(0.9 + h * 0.14);
+    tmp.lerp(oscuro, 0.75 * ss(-0.1, -0.6, ny) + 0.8 * ss(0.4, 0.48, z));            // vientre y zona de motores
     tmp.multiplyScalar(sombra[v]);
     base[v * 3] = tmp.r; base[v * 3 + 1] = tmp.g; base[v * 3 + 2] = tmp.b;
     acento[v] = Math.max(ss(0.35, 0.6, ny) * (ss(0.06, 0.03, Math.abs(x)) + ss(0.8 * ancho, 0.95 * ancho, Math.abs(x)) * 0.9), ss(-0.36, -0.42, z) * ss(0.2, 0.5, ny) * 0.9);
   }
   return navesGeo[n.id] = { M, base, acento };
 }
+// Paneles del casco en el shader: juntas, placas de tono distinto y remaches, proyectados desde los tres ejes
+// (las mallas no traen textura propia, así que se dibujan sobre la posición de cada punto de la nave)
+function panelesCasco(sh) {
+  sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vPL; varying vec3 vNL;")
+    .replace("#include <begin_vertex>", "#include <begin_vertex>\nvPL = position; vNL = normal;");
+  sh.fragmentShader = sh.fragmentShader.replace("#include <common>", `#include <common>
+varying vec3 vPL; varying vec3 vNL;
+float hashP(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float panel(vec2 p){ vec2 c = p * vec2(26.0, 34.0); vec2 f = fract(c), id = floor(c);
+  float junta = smoothstep(0.0, 0.05, min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)));
+  float tono = 0.93 + 0.12 * hashP(id);
+  vec2 r = abs(f - vec2(0.09)); float remache = 1.0 - 0.35 * (1.0 - smoothstep(0.02, 0.035, max(r.x, r.y)));
+  return mix(0.55, 1.0, junta) * tono * remache; }`)
+    .replace("#include <color_fragment>", `#include <color_fragment>
+vec3 wN = abs(normalize(vNL)); wN = pow(wN, vec3(4.0)); wN /= (wN.x + wN.y + wN.z);
+float pan = panel(vPL.yz) * wN.x + panel(vPL.xz) * wN.y + panel(vPL.xy) * wN.z;
+diffuseColor.rgb *= pan;`);
+}
 HG.largoNave = idx => HG.NAVES[idx].largo;
 HG.modeloNave = (idx, asp = { nivel: 0, color: HG.COLORES_NAVE[0] }) => {
   const g = new T.Group(), m = new T.Group(); g.add(m);
   const nv = HG.NAVES[idx], L = nv.largo, n = asp.nivel || 0, col = asp.color || HG.COLORES_NAVE[0], cc = HG.lin(col);
-  const mat = new T.MeshStandardMaterial({ vertexColors: true, roughness: n >= 2 ? 0.32 : 0.62, metalness: n >= 2 ? 0.8 : 0.35, emissive: n >= 3 ? cc.clone().multiplyScalar(0.16) : new T.Color(0) });
+  const mat = new T.MeshStandardMaterial({ vertexColors: true, roughness: n >= 2 ? 0.3 : 0.45, metalness: n >= 2 ? 0.75 : 0.45, emissive: n >= 3 ? cc.clone().multiplyScalar(0.16) : new T.Color(0) });
+  mat.onBeforeCompile = panelesCasco;
   const montar = () => {
-    const { M, base, acento } = geoNave(idx), c = new Float32Array(M.nv * 3), gris = HG.lin("#6d7684"), ac = n >= 1 ? cc : gris;
+    const { M, base, acento } = geoNave(idx), c = new Float32Array(M.nv * 3), ac = n >= 1 ? cc : HG.lin(nv.franja || "#6d7684");
     for (let v = 0; v < M.nv; v++) { const a = acento[v]; for (let k = 0; k < 3; k++) c[v * 3 + k] = base[v * 3 + k] * (1 - a) + (k === 0 ? ac.r : k === 1 ? ac.g : ac.b) * a * (base[v * 3 + k] * 0.4 + 0.75); }
     const geo = new T.BufferGeometry();
     geo.setAttribute("position", new T.BufferAttribute(M.pos, 3)); geo.setAttribute("normal", new T.BufferAttribute(M.nor, 3)); geo.setAttribute("color", new T.BufferAttribute(c, 3)); geo.setIndex(new T.BufferAttribute(M.idx, 1));
@@ -143,9 +195,9 @@ HG.matAtmosfera = (color, fuerza = 1.6) => new T.ShaderMaterial({
 HG.modeloPlaneta = (P) => {
   const g = new T.Group();
   // primero una textura pequeña (rápida) y, con el juego ya en marcha, la de alta resolución
-  const tex = HG.texPlaneta(P, 256), lava = P.id === "ignea";
-  const mat = new T.MeshStandardMaterial({ map: tex, bumpMap: tex, bumpScale: 2.5, roughness: P.id === "aurora" || P.id === "onix" ? 0.7 : 0.95, metalness: 0,
-    emissive: lava ? HG.lin("#ff5a1a") : new T.Color(0), emissiveMap: lava ? tex : null, emissiveIntensity: lava ? 0.6 : 0 });
+  const tex = HG.texPlaneta(P, 256), lava = P.tipo === "lava";
+  const mat = new T.MeshStandardMaterial({ map: tex, bumpMap: tex, bumpScale: 2.5, roughness: P.tipo === "mar" ? 0.7 : 0.95, metalness: 0,
+    emissive: lava ? HG.lin(P.tierra) : new T.Color(0), emissiveMap: lava ? tex : null, emissiveIntensity: lava ? 0.6 : 0 });
   const esfera = new T.Mesh(new T.SphereGeometry(P.radio, 96, 64), mat);
   g.add(esfera);
   HG.mejorarLuego(() => { const t = HG.texPlaneta(P); mat.map = mat.bumpMap = t; if (lava) mat.emissiveMap = t; mat.needsUpdate = true; });

@@ -32,7 +32,7 @@ HG.juego = {
     estado = "intro";
     HG.video.reproducir("video/intro.mp4", () => transicion(() => HG.juego.elegirPersonaje(() => transicion(() => {
       ir("estacion", "puerta");
-      HG.ui.toast("Bienvenido a la estación. Tienes 1.000 monedas: compra tu primera nave con Bruno, en el hangar (al este).", "oro");
+      HG.ui.toast("Bienvenido a la estación. Tienes 1.000 monedas: compra tu primera nave en la terminal del hangar (al este). Si te quedas sin dinero, pica carbón en la mina y véndelo.", "oro");
       setTimeout(() => HG.ui.toast("Haz clic para mover la cámara con el ratón. Esc para pausar."), 1500);
     }))));
   },
@@ -46,9 +46,10 @@ HG.juego = {
   zona(nombre, arg) {
     const P = HG.P;
     if (nombre === "hangar" || nombre === "tienda" || nombre === "clanes") HG.ui.abrir(nombre);
+    else if (nombre === "carbon") HG.venderCarbon();
     else if (nombre === "amigos") HG.ui.abrir("tienda", { pestana: "amigos" });
     else if (nombre === "despegar") {
-      if (P.naveActiva < 0) { HG.ui.toast("Necesitas una nave. Habla con Bruno en el hangar.", "rojo"); HG.audio.sfx("error"); return; }
+      if (P.naveActiva < 0) { HG.ui.toast("Necesitas una nave. Cómprala en la terminal del hangar.", "rojo"); HG.audio.sfx("error"); return; }
       transicion(() => ir("espacio", "estacion"), 600);
     } else if (nombre === "atracar") transicion(() => { ir("estacion", "hangar"); HG.ui.toast("Atracado en la estación. Vende tus minerales en la tienda."); }, 600);
     else if (nombre === "aterrizar") {

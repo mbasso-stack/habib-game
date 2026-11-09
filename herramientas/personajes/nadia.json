@@ -30,12 +30,12 @@
   ],
   "pierna": 0.075
  },
- "axila": -0.005,
+ "axila": 0.09,
  "pelo": {
   "frente": 0.955,
   "sien": 0.935,
-  "nuca": 0.9,
-  "zCara": 0.0,
+  "nuca": 0.8,
+  "zCara": 0.015,
   "anchoCara": 0.06,
   "lateral": 0.93
  },
@@ -43,7 +43,23 @@
   "relieve": 1.0,
   "ranuras": false
  },
- "zonas": [],
+ "zonas": [
+  {
+   "zona": "panel",
+   "caja": [
+    0.075,
+    0.2,
+    0.48,
+    0.78,
+    -0.05,
+    0.05
+   ],
+   "simetrica": true,
+   "si": [
+    "traje"
+   ]
+  }
+ ],
  "cara": {
   "cx": 0.012,
   "ojo": [
@@ -96,11 +112,11 @@
   ]
  ],
  "paleta": {
-  "traje": "#3d7a3a",
+  "traje": "#2e6a33",
   "panel": "#1f3c6e",
   "detalle": "#1f3c6e",
-  "guantes": "#2f5e2c",
-  "botas": "#2c3a22",
+  "guantes": "#24502a",
+  "botas": "#2a2f24",
   "cuello": "#1f3c6e",
   "mochila": "#8f959c",
   "piel": "#d29a74",

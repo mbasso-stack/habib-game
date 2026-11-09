@@ -507,27 +507,26 @@ HG.animacion = (h, cadera, col, cadY, opc = {}) => {
         h.muslos[i].rotation.x = -Math.sin(ph) * A;
         h.rodillas[i].rotation.x = Math.max(0, Math.sin(ph - 1.3)) * (c ? 1.5 : 0.9) + 0.05;
         h.tobillos[i].rotation.x = Math.sin(ph - 0.6) * (c ? 0.35 : 0.22);
-        h.hombros[i].rotation.x = Math.sin(ph) * (c ? 0.9 : 0.45);
-        h.codos[i].rotation.x = c ? -1.25 : -0.35 - Math.max(0, -Math.sin(ph)) * 0.25;
+        h.hombros[i].rotation.x = Math.sin(ph) * (c ? 0.42 : 0.2); // brazos con poco vaivén
+        h.codos[i].rotation.x = c ? -0.75 : -0.25 - Math.max(0, -Math.sin(ph)) * 0.12;
       }
       cadera.position.y = cadY - Math.abs(Math.cos(f)) * (c ? 0.05 : 0.025) + (c ? 0.02 : 0);
       cadera.rotation.y = Math.sin(f) * (c ? 0.12 : 0.08); cadera.rotation.z = Math.cos(f) * 0.03;
       col.rotation.x = c ? 0.22 : 0.04; col.rotation.y = -Math.sin(f) * (c ? 0.2 : 0.13); col.rotation.z = -cadera.rotation.z;
       h.cabeza.rotation.y = Math.sin(f) * 0.05; h.cabeza.rotation.x = c ? -0.12 : 0;
     } else if (estado === "saltar") {
-      for (let i = 0; i < 2; i++) { h.muslos[i].rotation.x = -0.7 + i * 0.4; h.rodillas[i].rotation.x = 1.1 - i * 0.4; h.tobillos[i].rotation.x = 0.3; h.hombros[i].rotation.set(-0.5, 0, (i ? 1 : -1) * 0.9); h.codos[i].rotation.x = -0.5; }
+      for (let i = 0; i < 2; i++) { h.muslos[i].rotation.x = -0.7 + i * 0.4; h.rodillas[i].rotation.x = 1.1 - i * 0.4; h.tobillos[i].rotation.x = 0.3; h.hombros[i].rotation.set(-0.3, 0, (i ? 1 : -1) * 0.35); h.codos[i].rotation.x = -0.35; }
       col.rotation.x = 0.08;
     } else if (estado === "picar") {
       const u = (t * 2.2) % 1, sw = u < 0.55 ? u / 0.55 : 1 - (u - 0.55) / 0.45;
-      h.hombros[0].rotation.x = -2.6 + (1 - sw) * 2.2; h.hombros[1].rotation.x = -2.2 + (1 - sw) * 1.8;
-      h.codos[0].rotation.x = -0.4; h.codos[1].rotation.x = -0.6;
+      h.hombros[0].rotation.x = -1.15 + (1 - sw) * 1.0; h.codos[0].rotation.x = -1.0 + (1 - sw) * 0.5; // el pico va en la mano derecha; la izquierda queda abajo
       col.rotation.x = 0.1 + (1 - sw) * 0.35; h.muslos[0].rotation.x = -0.35; h.rodillas[0].rotation.x = 0.4; h.muslos[1].rotation.x = 0.15; h.rodillas[1].rotation.x = 0.1;
     } else if (estado === "saludar") {
-      h.hombros[0].rotation.set(0, 0, -2.5); h.codos[0].rotation.set(0, 0, -0.4 + Math.sin(t * 9) * 0.45);
+      h.hombros[0].rotation.set(-0.15, 0, -0.55); h.codos[0].rotation.set(0, 0, -2.1 + Math.sin(t * 8) * 0.3); // saluda con el antebrazo
       h.cabeza.rotation.z = 0.1; col.rotation.z = 0.04;
       h.hombros[1].rotation.x = Math.sin(t * 1.6) * 0.03;
     } else if (estado === "pilotar") {
-      for (let i = 0; i < 2; i++) { h.muslos[i].rotation.x = -1.5; h.rodillas[i].rotation.x = 1.5; h.hombros[i].rotation.x = -0.9; h.codos[i].rotation.x = -0.6; }
+      for (let i = 0; i < 2; i++) { h.muslos[i].rotation.x = -1.5; h.rodillas[i].rotation.x = 1.5; h.hombros[i].rotation.x = -0.6; h.codos[i].rotation.x = -0.7; }
       cadera.position.y = cadY * 0.57;
     } else { // quieto: respiración, peso que pasa de una pierna a otra y mirada
       const p = Math.sin(t * 0.5), r = Math.sin(t * 1.6);

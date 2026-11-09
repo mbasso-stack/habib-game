@@ -3,19 +3,19 @@
 (function () {
 const HG = window.HG, T = THREE;
 const escena = new T.Scene();
-escena.fog = new T.FogExp2(HG.lin("#03040a"), 0.000035);
+escena.fog = new T.FogExp2(HG.lin("#03040a"), 0.000012);
 escena.userData.brillo = [0.85, 0.72]; escena.userData.exposicion = 1.15;
 escena.add(new T.AmbientLight(HG.lin("#8090b0"), 0.22));
 escena.add(new T.HemisphereLight(HG.lin("#9fbfff"), HG.lin("#201810"), 0.25));
 escena.environment = HG.envEspacio(HG.SOL_DIR);
 const sol = new T.DirectionalLight(HG.lin("#fff2dd"), 1.6); sol.position.set(4000, 2500, 3000); escena.add(sol);
-const sky = HG.cielo(20000); escena.add(sky);
-const solVisible = HG.malla(new T.SphereGeometry(500, 24, 16), HG.brillo("#fff4d0"), 12000, 7500, 9000, escena, false);
-HG.malla(new T.SphereGeometry(1100, 24, 16), HG.brillo("#ffcf80", 0.25), 12000, 7500, 9000, escena, false);
+const sky = HG.cielo(60000); escena.add(sky);
+const solVisible = HG.malla(new T.SphereGeometry(1500, 24, 16), HG.brillo("#fff4d0"), 36000, 22500, 27000, escena, false);
+HG.malla(new T.SphereGeometry(3300, 24, 16), HG.brillo("#ffcf80", 0.25), 36000, 22500, 27000, escena, false);
 // destello del sol en la lente
 const texDestello = (r0, col) => HG.lienzoTex(128, 128, (c, w, h) => { const g = c.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, col); g.addColorStop(r0, col.replace(/[\d.]+\)$/, "0.25)")); g.addColorStop(1, "rgba(0,0,0,0)"); c.fillStyle = g; c.fillRect(0, 0, w, h); });
 if (T.Lensflare) {
-  const lf = new T.Lensflare(), luzSol = new T.PointLight(0xffffff, 0, 1); luzSol.position.set(12000, 7500, 9000);
+  const lf = new T.Lensflare(), luzSol = new T.PointLight(0xffffff, 0, 1); luzSol.position.set(36000, 22500, 27000);
   lf.addElement(new T.LensflareElement(texDestello(0.2, "rgba(255,244,220,1)"), 700, 0, HG.lin("#fff1dd")));
   lf.addElement(new T.LensflareElement(texDestello(0.5, "rgba(140,190,255,0.5)"), 90, 0.5));
   lf.addElement(new T.LensflareElement(texDestello(0.5, "rgba(255,190,120,0.45)"), 140, 0.75));
@@ -36,7 +36,7 @@ const planetas = HG.PLANETAS.map(P => { const g = HG.modeloPlaneta(P); g.positio
 // Campos de asteroides
 const asteroides = [];
 const geosRoca = [1, 2, 3, 4, 5].map(s => HG.geoRoca(s * 31));
-[[1100, 60, -650, 1], [-1800, 200, -1500, 3], [-3300, 120, -4700, 2], [2600, -200, -3000, 0]].forEach(([x, y, z, v], k) => {
+[[1800, 60, -1100, 1], [-2600, 200, -4600, 3], [-7500, 120, -12500, 2], [5200, -200, -12000, 0], [-3000, 300, -17000, 1], [11000, 0, -4000, 3]].forEach(([x, y, z, v], k) => {
   for (let i = 0; i < 40; i++) {
     const r = HG.rnd(6, 28), m = HG.malla(geosRoca[i % 5], HG.matRoca(v), x + HG.rnd(-380, 380), y + HG.rnd(-120, 120), z + HG.rnd(-380, 380), escena, false);
     m.scale.setScalar(r); m.rotation.set(Math.random() * 6, Math.random() * 6, 0);
@@ -94,7 +94,7 @@ function crearEnemigo(tipo, nivel, pos, planeta = -1, jefe = null) {
   g.position.copy(pos); escena.add(g);
   const e = { g, pos: g.position, vel: new T.Vector3(), tipo, nivel, planeta, jefe: !!jefe, radio: jefe ? 34 : 9,
     hpMax: jefe ? jefe.vida : 40 + 35 * nivel, velMax: jefe ? 95 : 120 + 15 * nivel + (tipo === "dardo" ? 40 : 0),
-    dano: jefe ? 10 + 4 * nivel : 4 + 3 * nivel, cd: HG.rnd(1, 3), orb: new T.Vector3(HG.rnd(-1, 1), HG.rnd(-0.4, 0.4), HG.rnd(-1, 1)).normalize(), nombre: jefe ? jefe.nombre : null };
+    dano: jefe ? 6 + 2.5 * nivel : 4 + 3 * nivel, cd: HG.rnd(1, 3), orb: new T.Vector3(HG.rnd(-1, 1), HG.rnd(-0.4, 0.4), HG.rnd(-1, 1)).normalize(), nombre: jefe ? jefe.nombre : null };
   e.hp = e.hpMax; enemigos.push(e); return e;
 }
 function danarEnemigo(e, d, dueno = true) {
@@ -110,7 +110,7 @@ function danarEnemigo(e, d, dueno = true) {
     HG.guardarPartida(); HG.juego.comprobarFinal();
   }
 }
-const BLINDAJE = 0.5; // todas las naves reciben la mitad de daño de disparos, choques y misiles
+const BLINDAJE = 0.35; // las naves solo reciben un 35 % del daño de disparos, choques y misiles
 function danarJugador(d) {
   if (!N.viva) return;
   N.hp -= d * BLINDAJE; HG.ui.golpe(); HG.audio.sfx("golpe");
@@ -151,7 +151,7 @@ function gestionarPiratas(dt) {
   if (dEst > 1300 && !planetas.some(pl => N.pos.distanceTo(pl.pos) < 2800)) {
     encuentroT -= dt;
     if (encuentroT <= 0) {
-      encuentroT = HG.rnd(35, 55); const nv = Math.min(5, 1 + Math.floor(dEst / 2500));
+      encuentroT = HG.rnd(35, 55); const nv = Math.min(5, 1 + Math.floor(dEst / 5000));
       for (let i = 0; i < HG.rint(2, 3); i++) crearEnemigo(["explorador", "dardo", "canonera"][HG.rint(0, 2)], nv, N.pos.clone().add(fwd().multiplyScalar(1400)).add(new T.Vector3(HG.rnd(-300, 300), HG.rnd(-150, 150), HG.rnd(-300, 300))), -1);
       HG.ui.toast("¡Piratas a la vista!", "rojo"); HG.audio.sfx("alarma");
     }
@@ -225,8 +225,9 @@ function actualizarNave(dt, activo) {
     N.yaw += yawRate; N.pitch = HG.clamp(N.pitch - r.dy * giro * 0.9 + dp * 1.1 * giro * dt, -1.35, 1.35);
     N.roll += (HG.clamp(-yawRate / Math.max(dt, 0.001) * 0.25, -0.9, 0.9) - N.roll) * Math.min(1, dt * 5);
     const turbo = I.tecla("ShiftLeft") || I.tecla("ShiftRight");
-    const obj = I.tecla("KeyW") ? s.velMax * (turbo ? 1.7 : 1) : I.tecla("KeyS") ? -s.velMax * 0.3 : N.vel0 * (1 - dt * 0.15);
-    N.vel0 += HG.clamp(obj - N.vel0, -s.velMax * 1.2 * dt, s.velMax * 0.9 * dt);
+    const crucero = !enemigos.some(e => e.pos.distanceTo(N.pos) < 2500); // lejos de enemigos el turbo es un salto de crucero
+    const obj = I.tecla("KeyW") ? s.velMax * (turbo ? (crucero ? 5 : 1.7) : 1) : I.tecla("KeyS") ? -s.velMax * 0.3 : N.vel0 * (1 - dt * 0.15);
+    N.vel0 += HG.clamp(obj - N.vel0, -s.velMax * 2.5 * dt, s.velMax * (turbo ? 2.2 : 0.9) * dt);
     N.lat += (((I.tecla("KeyD") ? 1 : 0) - (I.tecla("KeyA") ? 1 : 0)) * s.velMax * 0.45 - N.lat) * Math.min(1, dt * 3);
     const w = I.rueda(); if (w) N.arma = (N.arma + (w > 0 ? 1 : -1) + HG.P.equipadas.length) % HG.P.equipadas.length;
     for (let i = 0; i < 5; i++) if (I.pulsada("Digit" + (i + 1)) && i < HG.P.equipadas.length) N.arma = i;
@@ -267,14 +268,14 @@ function actualizarEnemigos(dt) {
     if (e.g.userData.nucleo) e.g.userData.nucleo.scale.setScalar(1 + Math.sin(performance.now() / 150) * 0.15);
     e.cd -= dt;
     if (e.cd <= 0 && d < (e.jefe ? 1400 : 1000) && N.viva && !seguro) {
-      e.cd = e.jefe ? 0.9 : Math.max(0.5, 1.7 - 0.15 * e.nivel) * HG.rnd(0.8, 1.3);
+      e.cd = e.jefe ? 1.4 : Math.max(0.5, 1.7 - 0.15 * e.nivel) * HG.rnd(0.8, 1.3);
       const pred = N.pos.clone().add(N.vel.clone().multiplyScalar(d / 700)), dir = pred.sub(e.pos).normalize();
       if (e.jefe) {
         for (let k = -2; k <= 2; k++) disparar(e.pos.clone(), dir.clone().add(new T.Vector3(k * 0.06, (k % 2) * 0.03, 0)).normalize(), 700, e.dano, false, "bala", "#ff5a3a");
         if (Math.random() < 0.35) disparar(e.pos.clone(), dir.clone(), 330, e.dano * 2.5, false, "misil", "#ff3c6e", { obj: "jugador" });
       } else disparar(e.pos.clone(), dir.add(new T.Vector3(HG.rnd(-0.03, 0.03), HG.rnd(-0.03, 0.03), HG.rnd(-0.03, 0.03))).normalize(), 700, e.dano, false, "bala", "#ff5a3a");
     }
-    if (N.viva && d < e.radio + 8) { danarJugador(e.jefe ? 40 : 20); danarEnemigo(e, 60); }
+    if (N.viva && d < e.radio + 8) { danarJugador(e.jefe ? 25 : 20); danarEnemigo(e, 60); }
   }
 }
 function actualizarBalas(dt) {

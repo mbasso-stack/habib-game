@@ -30,7 +30,7 @@
   ],
   "pierna": 0.06
  },
- "axila": -0.005,
+ "axila": 0.09,
  "tieneCara": false,
  "texturas": {
   "color": "rayo_diffuse.png",

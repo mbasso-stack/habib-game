@@ -191,24 +191,78 @@ const colision = (x, z, r) => {
   return false;
 };
 
-// ---------- Personajes ----------
-const P = id => HG.PERSONAJES.find(p => p.id === id);
-const fijos = [
-  { id: "bruno", p: HG.crearPersonaje(P("bruno")), x: 17.5, z: 4.5, r: -2.4, zona: "hangar", rolT: "Hangar", texto: "Hangar con Bruno" },
-  { id: "nadia", p: HG.crearPersonaje(P("nadia")), x: -19, z: 19, r: -2.3, zona: "amigos", rolT: "Amigos", texto: "Amigos con Nadia" },
-  { id: "kenji", p: HG.crearPersonaje(P("kenji")), x: -23, z: -13.5, r: -2.5, zona: "clanes", rolT: "Sala de clanes", texto: "Sala de clanes con Kenji" },
-];
-fijos.forEach(f => { f.p.grupo.position.set(f.x, 0, f.z); f.p.grupo.rotation.y = f.r; escena.add(f.p.grupo); cajasCol.push([f.x - 0.5, f.x + 0.5, f.z - 0.5, f.z + 0.5]); });
-const PUNTOS = [[-10, 0], [0, 6], [10, -2], [-4, -14], [16, -10], [2, 14], [-16, 6], [20, 22], [-2, -24], [28, -14]];
-const paseantes = [];
-for (let i = 0; i < 6; i++) {
-  const p = HG.crearPersonaje(HG.personajeAleatorio(100 + i * 17)), [x, z] = PUNTOS[i];
-  p.grupo.position.set(x, 0, z); escena.add(p.grupo);
-  paseantes.push({ p, obj: PUNTOS[(i + 3) % PUNTOS.length], espera: HG.rnd(0, 4), t: HG.rnd(0, 10) });
+// ---------- Terminales (en la estación solo estás tú, tu nave y el robot de la tienda) ----------
+function terminal(x, z, ry, titulo, color) {
+  const g = HG.pivote(escena, x, 0, z); g.rotation.y = ry;
+  M(HG.cajaR(1.4, 0.3, 1.0, 0.08), HG.mat("#2a2f37", { r: 0.5, m: 0.8 }), 0, 0.15, 0, g);
+  M(new T.CylinderGeometry(0.18, 0.28, 1.0, 16), HG.mat("#4a515b", { r: 0.35, m: 0.85 }), 0, 0.8, 0, g);
+  const cab = HG.pivote(g, 0, 1.45, 0); cab.rotation.x = -0.5;
+  M(HG.cajaR(1.3, 0.85, 0.12, 0.05), HG.mat("#3a414b", { r: 0.4, m: 0.8 }), 0, 0, 0, cab);
+  M(new T.PlaneGeometry(1.15, 0.7), new T.MeshBasicMaterial({ map: HG.texTexto(titulo, { color: "#e8fbff", fondo: "#06202a", tam: 54, brillo: color }) }), 0, 0, 0.065, cab, false);
+  M(new T.TorusGeometry(0.7, 0.03, 8, 40).rotateX(Math.PI / 2), HG.brillo(color), 0, 0.02, 0, g, false);
+  const luz = new T.PointLight(HG.lin(color), 0.8, 6, 2); luz.position.set(0, 1.8, 0.4); g.add(luz);
+  cajasCol.push([x - 0.7, x + 0.7, z - 0.6, z + 0.6]);
+  return g;
 }
-// robot de la tienda (modelo 3D de Malik): saluda cuando te acercas
+const TERMINALES = [
+  { x: 17.5, z: 4.5, ry: -2.4, zona: "hangar", titulo: "HANGAR", texto: "Terminal del hangar", color: "#4cc9f0" },
+  { x: -19, z: 19, ry: -2.3, zona: "amigos", titulo: "AMIGOS", texto: "Terminal de amigos", color: "#7CFC9A" },
+  { x: -23, z: -13.5, ry: -2.5, zona: "clanes", titulo: "CLANES", texto: "Terminal de clanes", color: "#b46bff" },
+];
+TERMINALES.forEach(t => terminal(t.x, t.z, t.ry, t.titulo, t.color));
+
+// ---------- Mina de carbón y compra de carbón ----------
+const MINA = { x: 27, z: -14 }, VENTA_C = { x: 18, z: -6 };
+const suelo2 = M(new T.CircleGeometry(8.5, 40).rotateX(-Math.PI / 2), HG.mat("#24211f", { r: 0.95 }), MINA.x, 0.015, MINA.z, escena); suelo2.castShadow = false;
+cartel("MINA DE CARBÓN", MINA.x, 6.5, -FO + 0.6, 0, 9, { color: "#ffd9a0", fondo: "#2a1d14" });
+for (const [dx, dz] of [[-7, -6], [7, -6], [-7, 6], [7, 6]]) { // focos de obra
+  M(new T.CylinderGeometry(0.07, 0.07, 3.2, 8), HG.mat("#f2c230", { r: 0.5 }), MINA.x + dx, 1.6, MINA.z + dz, escena);
+  M(new T.SphereGeometry(0.22, 12, 8), HG.brillo("#fff1c8"), MINA.x + dx, 3.25, MINA.z + dz, escena, false);
+}
+const luzMina = new T.PointLight(HG.lin("#ffd9a0"), 1.6, 22, 2); luzMina.position.set(MINA.x, 6, MINA.z); escena.add(luzMina);
+const matCarbon = HG.mat("#141313", { r: 0.35, m: 0.25 }), vetasC = [];
+[[-4, -3], [0, -5], [4, -3], [-5, 2], [5, 2], [-1.5, 4.5], [2, 0.5]].forEach(([dx, dz], i) => {
+  const x = MINA.x + dx, z = MINA.z + dz, s = 1.1 + (i % 3) * 0.2, g = HG.pivote(escena, x, 0, z);
+  M(HG.geoRoca(300 + i * 7, 0.8), HG.matRoca(3), 0, s * 0.45, 0, g).scale.setScalar(s);
+  for (let j = 0; j < 5; j++) { const c = M(HG.geoRoca(500 + i * 11 + j, 1), matCarbon, HG.rnd(-0.5, 0.5) * s, s * HG.rnd(0.55, 1.0), HG.rnd(-0.5, 0.5) * s, g); c.scale.setScalar(0.28 * s); }
+  vetasC.push({ g, x, z, r: s, vida: 3, espera: 0, sac: 0 });
+});
+// vagoneta de decoración y terminal de compra
+M(HG.cajaR(1.8, 0.9, 1.2, 0.08), HG.mat("#6a4a2e", { r: 0.7, m: 0.3 }), MINA.x - 2, 0.75, MINA.z + 7.2, escena);
+for (let i = 0; i < 6; i++) M(HG.geoRoca(700 + i, 1), matCarbon, MINA.x - 2.5 + (i % 3) * 0.5, 1.25, MINA.z + 7 + (i > 2 ? 0.3 : -0.3), escena).scale.setScalar(0.3);
+terminal(VENTA_C.x, VENTA_C.z, -1.2, "COMPRA DE CARBÓN", "#ffb347");
+vetasC.forEach(v => cajasCol.push([v.x - v.r * 0.7, v.x + v.r * 0.7, v.z - v.r * 0.7, v.z + v.r * 0.7]));
+const chispasC = [];
+function picarCarbon(dt, activo) {
+  const P = HG.P, p = control.pos, enMina = Math.hypot(p.x - MINA.x, p.z - MINA.z) < 10;
+  jugador.pico(enMina);
+  for (const v of vetasC) {
+    if (v.vida <= 0) { v.espera -= dt; if (v.espera <= 0) { v.vida = 3; v.g.scale.setScalar(1); } else v.g.scale.setScalar(Math.max(0.01, v.g.scale.x * (1 - dt * 6))); }
+    if (v.sac > 0) { v.sac -= dt; v.g.position.x = v.x + HG.rnd(-0.05, 0.05); } else v.g.position.x = v.x;
+  }
+  if (!enMina || !activo || !(HG.input.clic() || HG.input.tecla("KeyF")) || control.accion > 0) return;
+  control.accion = 0.45; HG.audio.sfx("pico");
+  let mejor = null, dm = 1e9;
+  for (const v of vetasC) { if (v.vida <= 0) continue; const d = Math.hypot(v.x - p.x, v.z - p.z) - v.r; if (d < dm) { dm = d; mejor = v; } }
+  if (!mejor || dm > 2.2) return;
+  control.rumbo = Math.atan2(mejor.x - p.x, mejor.z - p.z);
+  mejor.vida--; mejor.sac = 0.2;
+  if (mejor.vida > 0) return;
+  mejor.espera = 15;
+  const cap = HG.CARBON.max, antes = P.carbon || 0, gana = Math.min(cap - antes, HG.rint(2, 4));
+  P.carbon = antes + Math.max(0, gana);
+  if (gana > 0) { HG.ui.toast(`+${gana} de carbón (${P.carbon}/${cap})`); HG.audio.sfx("moneda"); }
+  else { HG.ui.toast(`Llevas el máximo de carbón (${cap}). Véndelo en la terminal de compra.`, "rojo"); HG.audio.sfx("error"); }
+}
+HG.venderCarbon = () => {
+  const P = HG.P, n = P.carbon || 0;
+  if (!n) { HG.ui.toast("No llevas carbón. Pícalo en la mina de la estación.", "rojo"); HG.audio.sfx("error"); return; }
+  const total = n * HG.CARBON.precio; P.carbon = 0; P.monedas += total;
+  HG.ui.toast(`Vendes ${n} de carbón: +${HG.fmt(total)} monedas`, "oro"); HG.audio.sfx("compra"); HG.guardarPartida();
+};
+
+// robot de la tienda (modelo 3D de Malik)
 const robot = HG.crearPersonaje(HG.ROBOT); robot.grupo.position.set(TI.x, 0, TI.z + 2.8); escena.add(robot.grupo);
-let saludando = -10;
 cajasCol.push([TI.x - 1, TI.x + 1, TI.z + 2, TI.z + 4]);
 
 // nave expuesta en el hangar
@@ -221,8 +275,9 @@ HG.refrescarNaveHangar = () => {
     naveExpuesta = M(new T.OctahedronGeometry(2.4), new T.MeshBasicMaterial({ color: HG.lin("#4fd0ff"), wireframe: true }), 0, 3, 0, holo, false);
   } else {
     const d = HG.P.naves[idx]; naveExpuesta = HG.modeloNave(idx, { nivel: d.asp, color: d.color }); naveExpuesta.position.set(0, 2.2, 0); naveExpuesta.rotation.y = 2.4;
+    const esc = Math.min(1, 18 / HG.largoNave(idx)); naveExpuesta.scale.setScalar(esc); // las grandes se muestran a escala para que quepan en el hangar
     naveExpuesta.traverse(o => { if (o.isMesh) o.castShadow = true; }); holo.add(naveExpuesta);
-    const L = HG.largoNave(idx) * 0.42; cajaNave = [HANG.x - L, HANG.x + L, HANG.z - L, HANG.z + L];
+    const L = HG.largoNave(idx) * esc * 0.42; cajaNave = [HANG.x - L, HANG.x + L, HANG.z - L, HANG.z + L];
   }
 };
 
@@ -233,19 +288,15 @@ function prepararJugador() {
   if (jugador && skinActual === skin) return;
   if (jugador) escena.remove(jugador.grupo);
   jugador = HG.crearPersonaje(HG.PERSONAJES[skin]); skinActual = skin; escena.add(jugador.grupo);
-  // si el jugador lleva a un personaje de la estación, Haluski ocupa su puesto
-  for (const f of fijos) {
-    const quiere = f.id === HG.PERSONAJES[skin].id ? "haluski" : f.id;
-    if (f.p.def.id !== quiere) { escena.remove(f.p.grupo); f.p = HG.crearPersonaje(P(quiere)); f.p.grupo.position.set(f.x, 0, f.z); f.p.grupo.rotation.y = f.r; escena.add(f.p.grupo); }
-    f.texto = `${f.rolT} con ${f.p.def.corto}`;
-  }
   const prev = control; control = new HG.ControlPie(jugador, { limites: [-AN + 1, AN - 1, -FO + 1, FO - 1], colision });
   if (prev) { control.colocar(prev.pos.x, prev.pos.z, prev.rumbo); control.yaw = prev.yaw; }
 }
 
 // ---------- Interacciones ----------
 const ZONAS = () => [
-  ...fijos.map(f => ({ x: f.x, z: f.z, r: 3.2, zona: f.zona, texto: f.texto })),
+  ...TERMINALES.map(t => ({ x: t.x, z: t.z, r: 3, zona: t.zona, texto: t.texto })),
+  { x: VENTA_C.x, z: VENTA_C.z, r: 3, zona: "carbon", texto: () => `Vender carbón (${HG.P.carbon || 0} × ${HG.CARBON.precio} ●)` },
+  { x: MINA.x, z: MINA.z, r: 8.5, zona: "mina", texto: () => `Mina de carbón · clic o F para picar · llevas ${HG.P.carbon || 0}/${HG.CARBON.max}` },
   { x: TI.x, z: TI.z - 3.5, r: 4.5, rect: [TI.x - 7.5, TI.x + 6.5, TI.z - 8, TI.z - 1.8], zona: "tienda", texto: "Tienda del robot" }, // todo el frente del mostrador
   { x: HANG.x, z: HANG.z, r: 9, zona: "hangar", texto: "Ver tu nave en el hangar" },
   { x: PAD.x, z: PAD.z, r: 7.5, zona: "despegar", texto: "Despegar" },
@@ -265,17 +316,8 @@ HG.Estacion = {
     prepararJugador();
     control.actualizar(dt, activo, HG.P.comida <= 0 ? 0.5 : 1);
     jugador.animar(control.estado, t, dt);
-    for (const f of fijos) f.p.animar(zonaCerca && zonaCerca.zona === f.zona ? "saludar" : "quieto", t + f.x, dt);
-    for (const w of paseantes) {
-      const g = w.p.grupo; w.t += dt;
-      if (w.espera > 0) { w.espera -= dt; w.p.animar("quieto", w.t, dt); continue; }
-      const dx = w.obj[0] - g.position.x, dz = w.obj[1] - g.position.z, d = Math.hypot(dx, dz);
-      if (d < 0.6) { w.obj = PUNTOS[HG.rint(0, PUNTOS.length - 1)]; w.espera = HG.rnd(1.5, 6); continue; }
-      g.position.x += dx / d * 1.4 * dt; g.position.z += dz / d * 1.4 * dt;
-      g.rotation.y += HG.angDif(g.rotation.y, Math.atan2(dx, dz)) * Math.min(1, dt * 6);
-      w.p.animar("andar", w.t * 0.9, dt);
-    }
-    robot.animar(saludando > 0 ? "saludar" : "quieto", t, dt);
+    robot.animar("quieto", t, dt);
+    picarCarbon(dt, activo);
     holoPlaneta.rotation.y += dt * 0.6; holo.rotation.y += dt * 0.15; planetaVentana.rotation.y += dt * 0.004;
     for (let i = 0; i < POLVO; i++) { pp[i * 3 + 1] += Math.sin(t * 0.3 + i) * dt * 0.05; pp[i * 3] += dt * 0.05; if (pp[i * 3] > AN) pp[i * 3] = -AN; }
     polvoGeo.attributes.position.needsUpdate = true;
@@ -286,10 +328,9 @@ HG.Estacion = {
       const d = dentro ? 0 : Math.hypot(z.x - p.x, z.z - p.z);
       if ((dentro || d < z.r) && d < dmin) { dmin = d; zonaCerca = z; }
     }
-    if (zonaCerca && zonaCerca.zona === "tienda" && saludando <= -4) saludando = 2.2;
-    saludando -= dt; if (!zonaCerca || zonaCerca.zona !== "tienda") saludando = Math.min(saludando, -4);
-    HG.ui.aviso(activo && zonaCerca ? `<b>E</b> · ${zonaCerca.texto}` : null);
-    if (activo && zonaCerca && HG.input.pulsada("KeyE")) HG.juego.zona(zonaCerca.zona);
+    const txt = zonaCerca && (typeof zonaCerca.texto === "function" ? zonaCerca.texto() : zonaCerca.texto);
+    HG.ui.aviso(activo && zonaCerca ? (zonaCerca.zona === "mina" ? txt : `<b>E</b> · ${txt}`) : null);
+    if (activo && zonaCerca && zonaCerca.zona !== "mina" && HG.input.pulsada("KeyE")) HG.juego.zona(zonaCerca.zona);
   },
   posJugador: () => control && control.pos,
 };

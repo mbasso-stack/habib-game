@@ -27,7 +27,7 @@ HG.ui = {
     const conq = Object.values(P.planetas).filter(p => p.conquistado).length;
     set("hMonedas", fmt(P.monedas)); set("hCarga", `${carga}/${bod}`); set("hDerrotas", `${P.derrotas}/${HG.META.derrotas}`); set("hPlanetas", `${conq}/${HG.META.planetas}`);
     setBarra("bComida", P.comida / 100, P.comida < 20 ? "#ff5a4a" : "#7CFC9A"); set("tComida", Math.ceil(P.comida));
-    set("hObjetivo", P.naveActiva < 0 ? "Compra tu primera nave en el hangar (Bruno, al este)" : carga >= bod && bod ? "Bodega llena: vende minerales en la tienda" : conq < 3 ? "Derrota jefes y planta tu bandera en 3 planetas" : P.derrotas < 100 ? "Derrota a 100 enemigos" : P.monedas < 1e6 ? "Reúne 1.000.000 de monedas" : "¡Misión cumplida!");
+    set("hObjetivo", P.naveActiva < 0 ? "Compra tu primera nave en la terminal del hangar (al este) · ¿Sin dinero? Pica carbón en la mina" : carga >= bod && bod ? "Bodega llena: vende minerales en la tienda" : conq < 3 ? "Derrota jefes y planta tu bandera en 3 planetas" : P.derrotas < 100 ? "Derrota a 100 enemigos" : P.monedas < 1e6 ? "Reúne 1.000.000 de monedas" : "¡Misión cumplida!");
   },
   hudVuelo(d) {
     setBarra("bVida", d.hp / d.hpMax, d.hp / d.hpMax < 0.3 ? "#ff5a4a" : "#4fd0ff"); set("tVida", `${Math.ceil(d.hp)}/${d.hpMax}`);
@@ -69,7 +69,7 @@ function pintar() {
   let h = "";
   if (t === "hangar") {
     const n = HG.NAVES[sel], d = P.naves[sel], mx = HG.NAVES[HG.NAVES.length - 1];
-    h += cabecera("HANGAR", "Compra, mejora y equipa tus naves", "Bruno «Llave» Kowalski · Mecánico");
+    h += cabecera("HANGAR", "Compra, mejora y equipa tus naves", "Terminal del hangar");
     h += `<div class="dos"><div class="lista">${HG.NAVES.map((nv, i) => `<button class="fila ${i === sel ? "sel" : ""}" data-acc="selNave" data-i="${i}"><b>${i + 1}. ${nv.nombre}</b><span>${P.naves[i] ? (P.naveActiva === i ? "EN USO" : "TUYA") : fmt(nv.precio) + " ●"}</span></button>`).join("")}</div><div class="detalle">`;
     h += `<h3>${n.nombre}</h3><div class="stats">
       <div>Velocidad ${barra(n.vel / mx.vel, "#ffd166")}<span>${n.vel}</span></div><div>Vida ${barra(n.vida / mx.vida, "#7CFC9A")}<span>${n.vida}</span></div>
@@ -88,7 +88,7 @@ function pintar() {
     }
     h += `</div></div>`;
   } else if (t === "tienda") {
-    h += cabecera("TIENDA", "Armas, comida, venta de minerales y amigos", pestana === "amigos" ? "Nadia Reyes · Amigos" : "Robot dependiente");
+    h += cabecera("TIENDA", "Armas, comida, venta de minerales y amigos", pestana === "amigos" ? "Terminal de amigos" : "Robot dependiente");
     h += `<div class="pestanas">${[["armas", "Armas"], ["comida", "Comida"], ["vender", "Vender minerales"], ["amigos", "Amigos"]].map(([id, n]) => `<button class="${pestana === id ? "sel" : ""}" data-acc="pestana" data-p="${id}">${n}</button>`).join("")}</div><div class="rejilla">`;
     if (pestana === "armas") h += HG.ARMAS.map(a => `<div class="carta"><h4 style="color:${a.color}">${a.nombre}</h4><p>${a.desc}</p>${P.armas.includes(a.id) ? `<span class="ok">EN TU ARSENAL · equípala en el hangar</span>` : `<button class="boton" data-acc="comprarArma" data-id="${a.id}" ${P.monedas < a.precio ? "disabled" : ""}>${fmt(a.precio)} ●</button>`}</div>`).join("");
     if (pestana === "comida") h += `<div class="carta ancha">Comida ${barra(P.comida / 100, "#7CFC9A")} ${Math.ceil(P.comida)}/100<p>Baja con el tiempo. Sin comida, tu nave pierde vida y caminas más despacio.</p></div>` + HG.COMIDAS.map(c => `<div class="carta"><h4>${c.nombre}</h4><p>${c.desc}<br>+${c.valor} de comida</p><button class="boton" data-acc="comer" data-id="${c.id}" ${P.monedas < c.precio || P.comida >= 100 ? "disabled" : ""}>Comer · ${fmt(c.precio)} ●</button></div>`).join("");
@@ -100,13 +100,13 @@ function pintar() {
       h += `<div class="carta ancha"><h4>Precios</h4><p>${Object.values(HG.MINERALES).map(M => `<span style="color:${M.color}">${M.nombre}</span> ${fmt(M.precio)} ●`).join(" · ")}</p></div>`;
     }
     if (pestana === "amigos") {
-      h += `<div class="carta ancha"><p><b>Nadia:</b> «Aquí conoces a otros pilotos. Ahora mismo son pilotos de la estación; cuando el juego sea online, verás aquí a personas reales.»</p><p>Amigos: ${P.amigos.length}</p></div>`;
+      h += `<div class="carta ancha"><p>«Aquí conoces a otros pilotos. Ahora mismo son pilotos de la estación; cuando el juego sea online, verás aquí a personas reales.»</p><p>Amigos: ${P.amigos.length}</p></div>`;
       h += HG.PILOTOS_NPC.map((n, i) => { const am = P.amigos.includes(n); return `<div class="carta"><h4>${n}</h4><p>Nivel ${3 + (i * 7) % 18} · ${i % 3 ? "En la estación" : "De misión"}</p><button class="boton ${am ? "sec" : ""}" data-acc="amigo" data-n="${n}">${am ? "Quitar amigo" : "Añadir amigo"}</button></div>`; }).join("");
     }
     h += `</div>`;
   } else if (t === "clanes") {
     const c = P.clan;
-    h += cabecera("SALA DE CLANES", "Únete a un clan o crea el tuyo", "Capitán Kenji Morita · Comandante");
+    h += cabecera("SALA DE CLANES", "Únete a un clan o crea el tuyo", "Terminal de clanes");
     h += `<div class="carta ancha">${c ? `<h4 style="color:${c.color}">Tu clan: ${c.nombre}</h4><p>${c.lema || ""}</p><button class="boton sec" data-acc="salirClan">Salir del clan</button>` : `<p>No perteneces a ningún clan. Tu bandera en los planetas tendrá el color de tu clan.</p>`}</div><div class="rejilla">`;
     h += HG.CLANES_NPC.map(cl => `<div class="carta"><h4 style="color:${cl.color}">${cl.nombre}</h4><p>${cl.lema}<br>${cl.miembros} miembros</p>${c && c.nombre === cl.nombre ? `<span class="ok">ERES MIEMBRO</span>` : `<button class="boton" data-acc="unirse" data-n="${cl.nombre}">Unirse</button>`}</div>`).join("");
     h += `<div class="carta"><h4>Crear clan</h4><p>Cuesta 5.000 monedas.</p><input id="nombreClan" maxlength="24" placeholder="Nombre del clan"><div class="colores">${HG.COLORES_NAVE.map((col, i) => `<button class="color ${i === 0 ? "sel" : ""}" style="background:${col}" data-acc="colorClan" data-c="${col}"></button>`).join("")}</div><button class="boton" data-acc="crearClan" ${P.monedas < 5000 ? "disabled" : ""}>Crear · 5.000 ●</button></div></div>`;
@@ -131,7 +131,7 @@ function pintar() {
   } else if (t === "controles") {
     h += `<div class="cab"><div><h2>CONTROLES</h2><p>Haz clic en el juego para controlar la cámara con el ratón · Esc para pausar</p></div><button class="x" data-acc="cerrar">✕</button></div><div class="dos ctrls">
       <div><h4>A pie</h4><p><kbd>W A S D</kbd> moverse · <kbd>Shift</kbd> correr · <kbd>Espacio</kbd> saltar<br><kbd>Ratón</kbd> cámara · <kbd>Rueda</kbd> zoom · <kbd>E</kbd> interactuar<br><kbd>Clic</kbd> o <kbd>F</kbd> picar minerales (en los planetas)</p></div>
-      <div><h4>En la nave</h4><p><kbd>Ratón</kbd> o <kbd>flechas</kbd> dirigir · <kbd>W</kbd> acelerar · <kbd>S</kbd> frenar · <kbd>A D</kbd> desplazarse<br><kbd>Shift</kbd> turbo · <kbd>Clic</kbd>, <kbd>Espacio</kbd> o <kbd>F</kbd> disparar (mantén con el plasma)<br><kbd>1</kbd>–<kbd>5</kbd> o <kbd>rueda</kbd> cambiar arma · <kbd>E</kbd> aterrizar o atracar</p></div></div><button class="boton" data-acc="cerrar">Entendido</button>`;
+      <div><h4>En la nave</h4><p><kbd>Ratón</kbd> o <kbd>flechas</kbd> dirigir · <kbd>W</kbd> acelerar · <kbd>S</kbd> frenar · <kbd>A D</kbd> desplazarse<br><kbd>Shift</kbd> turbo (lejos de enemigos, salto de crucero) · <kbd>Clic</kbd>, <kbd>Espacio</kbd> o <kbd>F</kbd> disparar (mantén con el plasma)<br><kbd>1</kbd>–<kbd>5</kbd> o <kbd>rueda</kbd> cambiar arma · <kbd>E</kbd> aterrizar o atracar</p></div></div><button class="boton" data-acc="cerrar">Entendido</button>`;
   } else if (t === "principal") {
     const hay = !!HG.cargarPartida();
     h += `<div class="menuCentro principal"><h1>HALUSKI</h1><h3>MISIÓN COLONIAL</h3>
