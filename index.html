@@ -108,6 +108,22 @@ kbd { background: #13254a; border: 1px solid var(--borde); padding: 1px 6px; fon
 .flecha { font-size: 26px; width: 58px; height: 58px; background: var(--fondo); border: 1px solid var(--cian); color: #fff; cursor: pointer; }
 .puntos span { display: inline-block; width: 10px; height: 10px; margin: 10px 5px; border: 1px solid var(--cian); transform: rotate(45deg); } .puntos span.on { background: var(--cian); }
 @media (max-width: 800px) { .dos { grid-template-columns: 1fr; } .ajustes { grid-template-columns: 1fr; } #hIzq { width: 200px; } }
+/* Pantallas pequeñas (móviles, tabletas en horizontal) */
+@media (max-width: 1000px), (max-height: 560px) {
+  #hIzq { width: 190px; left: 10px; top: 10px; padding: 6px 10px; } #hDer { right: 10px; top: 10px; min-width: 0; padding: 6px 10px; }
+  #hDer div { font-size: 13px; } #hDer b { font-size: 15px; } .etq { font-size: 10px; }
+  #objetivo { top: auto; bottom: 8px; font-size: 11px; padding: 4px 10px; max-width: 46vw; white-space: normal; text-align: center; }
+  #hud.vuelo #objetivo { display: none; }
+  #barraJefe { top: 10px; width: 300px; margin-left: -150px; }
+  #toasts { top: 96px; width: 300px; right: 10px; } .toast { font-size: 13px; padding: 6px 10px; }
+  #aviso { bottom: 70px; font-size: 15px; padding: 7px 14px; }
+  .slot { min-width: 90px; font-size: 12px; } #hArmas { bottom: 10px; }
+  #panel.principal { padding-left: 5vw; } .principal h1 { font-size: 46px; } .principal h3 { margin: -4px 0 10px; font-size: 13px; }
+  .menuCentro { gap: 7px; } .principal .boton { min-width: 220px; padding-top: 7px; padding-bottom: 7px; } .nota { font-size: 12px; }
+}
+/* con controles táctiles, la velocidad sube por encima del joystick */
+body.tactil #hVelCaja { left: auto; right: 50%; margin-right: -100px; bottom: 54px; width: 200px; }
+body.tactil #aviso { bottom: 110px; }
 </style>
 </head>
 <body>
@@ -155,5 +171,6 @@ kbd { background: #13254a; border: 1px solid var(--borde); padding: 1px 6px; fon
 <script src="js/planeta.js?v=10"></script>
 <script src="js/vestuario.js?v=10"></script>
 <script src="js/juego.js?v=10"></script>
+<script src="js/tactil.js?v=10"></script>
 </body>
 </html>

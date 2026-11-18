@@ -33,7 +33,7 @@ HG.juego = {
     HG.video.reproducir("video/intro.mp4", () => transicion(() => HG.juego.elegirPersonaje(() => transicion(() => {
       ir("estacion", "puerta");
       HG.ui.toast(HG.t("Bienvenido a la estación. Tienes 1.000 monedas: compra tu primera nave en la terminal del hangar (al este). Si te quedas sin dinero, pica carbón en la mina y véndelo."), "oro");
-      setTimeout(() => HG.ui.toast(HG.t("Haz clic para mover la cámara con el ratón. Esc para pausar.")), 1500);
+      setTimeout(() => HG.ui.toast(HG.t(navigator.maxTouchPoints > 0 && matchMedia("(pointer: coarse)").matches ? "Mueve con el joystick y arrastra a la derecha para mirar. ❚❚ para pausar." : "Haz clic para mover la cámara con el ratón. Esc para pausar.")), 1500);
     }))));
   },
   elegirPersonaje(volver) {

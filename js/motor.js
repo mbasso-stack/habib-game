@@ -278,6 +278,10 @@ HG.input = {
   soltarRaton() { if (document.pointerLockElement) document.exitPointerLock(); },
   finFrame() { for (const k in pulsadas) delete pulsadas[k]; clicIP = clicIS = false; },
   limpiar() { for (const k in teclas) teclas[k] = false; clicI = clicD = false; rdx = rdy = 0; },
+  // controles táctiles (js/tactil.js): teclas virtuales, giro de cámara en píxeles y rueda
+  virtual(c, on) { if (on && !teclas[c]) pulsadas[c] = true; teclas[c] = on; if (on) HG.audio.iniciar(); },
+  mirar(dx, dy) { rdx += dx; rdy += dy; },
+  girarRueda(n) { rueda += n; },
 };
 
 // ---------- Ajustes y guardado ----------

@@ -123,6 +123,9 @@ const EN = {
   "{0} comprada.": "{0} purchased.", "+{0} monedas": "+{0} coins", "{0} ahora es tu amigo.": "{0} is now your friend.", "Te has unido a {0}.": "You joined {0}.",
   "Escribe un nombre para tu clan.": "Type a name for your clan.", "Clan fundado por ti.": "A clan founded by you.", "Has fundado el clan {0}.": "You founded the clan {0}.",
   "¿Empezar una partida nueva? Se borrará la actual.": "Start a new game? Your current game will be deleted.",
+  // controles táctiles
+  "Picar": "Mine", "Saltar": "Jump", "Correr": "Run", "Arma": "Weapon", "Frenar": "Brake", "Turbo": "Boost", "Motor": "Thrust", "Fuego": "Fire",
+  "Mueve con el joystick y arrastra a la derecha para mirar. ❚❚ para pausar.": "Move with the joystick and drag on the right to look around. ❚❚ to pause.",
 };
 
 HG.t = (texto, ...valores) => {
