@@ -495,6 +495,7 @@ HG.animacion = (h, cadera, col, cadY, opc = {}) => {
   const huesos = [cadera, col, h.cabeza, ...h.hombros, ...h.codos, ...h.manos, ...h.muslos, ...h.rodillas, ...h.tobillos];
   return (estado, t, dt = 0.016) => {
     // la postura anterior se guarda para pasar de una animación a otra sin saltos
+    const primera = !previo; // la primera vez no hay postura anterior: se pone la pose directamente
     if (previo) huesos.forEach((b, i) => previo[i].copy(b.quaternion)); else previo = huesos.map(b => b.quaternion.clone());
     const cadPrev = cadera.position.clone();
     // postura neutra
@@ -543,7 +544,7 @@ HG.animacion = (h, cadera, col, cadY, opc = {}) => {
       h.cabeza.rotation.y = Math.sin(t * 0.45) * 0.25; h.cabeza.rotation.z = cadera.rotation.z * 0.3;
     }
     // mezcla suave con la postura anterior (andar → quieto, saludar → quieto, etc.)
-    const k = 1 - Math.exp(-dt * 12);
+    const k = primera ? 1 : 1 - Math.exp(-dt * 12);
     huesos.forEach((b, i) => b.quaternion.copy(previo[i].slerp(b.quaternion, k)));
     if (cadPrev.lengthSq() > 0) cadera.position.lerpVectors(cadPrev, cadera.position, k);
     // ojos: pequeños movimientos y parpadeo

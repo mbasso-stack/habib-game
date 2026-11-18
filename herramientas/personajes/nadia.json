@@ -58,7 +58,7 @@
   ],
   "pierna": 0.075
  },
- "axila": 0.09,
+ "axila": 0.2,
  "pelo": {
   "frente": 0.955,
   "sien": 0.935,
@@ -185,5 +185,9 @@
   "ceja": "#141418",
   "ojos": "#5a3a22",
   "labios": "#b0625a"
- }
+ },
+ "subdividir": 2,
+ "suavizarMalla": 20,
+ "suavizarPesos": 12,
+ "desplegar": 120
 }

@@ -5,9 +5,9 @@
 (function () {
 const HG = window.HG, T = THREE;
 
-// Las caras se ven tal cual vienen esculpidas en cada modelo; los rasgos pintados quedan desactivados
-HG.RASGOS_PINTADOS = false;
-HG.MALLAS = { haluski: {}, rayo: {}, nadia: {}, kenji: {}, bruno: {}, astro: {}, piloto: {}, robot: {} };
+// Ojos (con iris y parpadeo), cejas, nariz y boca pintados sobre la cara esculpida de cada modelo (Rayo trae su propia textura)
+HG.RASGOS_PINTADOS = true;
+HG.MALLAS = { haluski: {}, rayo: {}, nadia: { mezclarColor: true }, kenji: { rasgos: false }, bruno: { caraSep: 0.0045 }, astro: {}, piloto: {}, robot: {} }; // caraSep: separación de los rasgos pintados en caras con párpados muy marcados · rasgos: false deja la cara esculpida (Kenji ya trae los ojos tallados)
 // Zonas de color (mismo orden que en hornear.py) y material de cada una: 0 tela/piel · 1 metal · 2 luz
 const ZONAS = ["traje", "panel", "detalle", "guantes", "botas", "suela", "cuello", "mochila", "piel", "pelo", "metal", "acento", "visor", "luz", "labios", "ceja"];
 const MATERIAL_ZONA = { metal: 1, visor: 1, luz: 2 };
@@ -77,13 +77,21 @@ function geometria(d, modo) {
     }
     if (c > ini) g.addGroup(ini, c - ini, mat);
   });
+  // mallas densas (Nadia): el color de cada vértice se mezcla con el de los triángulos vecinos y los bordes entre zonas
+  // (pelo y piel, mangas y tronco) quedan suaves en lugar de en escalera
+  if (!modo && !tex && (HG.MALLAS[d.malla] || {}).mezclarColor) {
+    const suma = new Float32Array(M.nv * 3), cuenta = new Float32Array(M.nv); let k = 0;
+    orden.forEach(lista => { for (const f of lista) for (let j = 0; j < 3; j++, k++) { const v = M.caras[f * 3 + j]; suma[v * 3] += col[k * 3]; suma[v * 3 + 1] += col[k * 3 + 1]; suma[v * 3 + 2] += col[k * 3 + 2]; cuenta[v]++; } });
+    k = 0;
+    orden.forEach((lista, mat) => { for (const f of lista) for (let j = 0; j < 3; j++, k++) { if (mat) continue; const v = M.caras[f * 3 + j]; for (let e = 0; e < 3; e++) col[k * 3 + e] = suma[v * 3 + e] / cuenta[v]; } });
+  }
   g.setAttribute("position", new T.BufferAttribute(pos, 3)); g.setAttribute("normal", new T.BufferAttribute(nor, 3)); g.setAttribute("color", new T.BufferAttribute(col, 3));
   g.setAttribute("skinIndex", new T.BufferAttribute(si, 4)); g.setAttribute("skinWeight", new T.BufferAttribute(sw, 4));
   if (tex) g.setAttribute("uv", new T.BufferAttribute(uvs, 2));
   return geos[clave] = g;
 }
 const mats = {};
-const cargaTex = (archivo, srgb) => { const t = new T.TextureLoader().load(`${HG.BASE || ""}modelos/personajes/${archivo}?v=10`); if (srgb) t.encoding = T.sRGBEncoding; t.anisotropy = 8; return t; };
+const cargaTex = (archivo, srgb) => { const t = new T.TextureLoader().load(`${HG.BASE || ""}modelos/personajes/${archivo}?v=11`); if (srgb) t.encoding = T.sRGBEncoding; t.anisotropy = 8; return t; };
 // Modelo con texturas propias (color, relieve, rugosidad y metal)
 function materialTexturas(M) {
   const tx = M.meta.textura, m = new T.MeshStandardMaterial({ vertexColors: true, skinning: true, side: T.DoubleSide, roughness: 1, metalness: 1 });
@@ -195,7 +203,7 @@ const carasGeo = {}, carasTex = {};
 function geometriaCara(d) {
   const M = cache[d.malla], C = M.meta.cara, A = d.altura, clave = d.malla + A;
   if (carasGeo[clave]) return carasGeo[clave];
-  const { GX, GY, ventana: v } = C, n = (GX + 1) * (GY + 1), off = 0.001;
+  const { GX, GY, ventana: v } = C, n = (GX + 1) * (GY + 1), off = (HG.MALLAS[d.malla] || {}).caraSep || 0.0022; // algo separada para que la escultura no asome
   const valido = new Uint8Array(n), pos = new Float32Array(n * 3), uv = new Float32Array(n * 2), idx = [];
   const zMin = C.c.nariz[2] - 0.045;
   for (let j = 0; j <= GY; j++) for (let i = 0; i <= GX; i++) {
@@ -223,8 +231,8 @@ HG.Mallas = {
   cargar(id) {
     if (cache[id]) return Promise.resolve(cache[id]);
     return esperas[id] || (esperas[id] = Promise.all([
-      fetch(`${HG.BASE || ""}modelos/personajes/${id}.json?v=10`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
-      fetch(`${HG.BASE || ""}modelos/personajes/${id}.bin?v=10`).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }),
+      fetch(`${HG.BASE || ""}modelos/personajes/${id}.json?v=11`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
+      fetch(`${HG.BASE || ""}modelos/personajes/${id}.bin?v=11`).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }),
     ]).then(([meta, buf]) => cache[id] = leer(buf, meta)));
   },
   // Esqueleto y malla de un personaje; devuelve lo mismo que HG.crearPersonaje. opc.modo: "zona", "parte", "hueso" o "sombra" para revisar
@@ -248,8 +256,9 @@ HG.Mallas = {
     malla.bind(new T.Skeleton(huesos));
     const pico = HG.hacerPico(h.manos[0]), anim = HG.animacion(h, cadera, columna, J.cad * A, { reposoZ: 0.02, mano: true });
     let animar = anim;
-    if (HG.RASGOS_PINTADOS && M.meta.cara && M.meta.cara.c.ojo && !opc.sinCara) { // ojos, cejas, nariz y boca, que parpadean
-      const tx = caraTex(d, M), mat = new T.MeshStandardMaterial({ map: tx.abierta, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, skinning: true, roughness: 0.55, metalness: 0 });
+    const ajuste = HG.MALLAS[d.malla] || {}, pintarRasgos = opc.rasgos ?? (ajuste.rasgos ?? HG.RASGOS_PINTADOS);
+    if (pintarRasgos && M.meta.cara && M.meta.cara.c.ojo && !opc.sinCara) { // ojos, cejas, nariz y boca, que parpadean
+      const tx = caraTex(d, M), mat = new T.MeshStandardMaterial({ map: tx.abierta, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, skinning: true, roughness: 0.55, metalness: 0 });
       const cara = new T.SkinnedMesh(geometriaCara(d), mat); cara.frustumCulled = false; cara.renderOrder = 2; raiz.add(cara);
       raiz.updateMatrixWorld(true); cara.bind(malla.skeleton);
       let espera = HG.rnd(1, 4), cerrado = false;

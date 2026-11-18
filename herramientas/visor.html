@@ -4,11 +4,11 @@
 <body><canvas id="lienzo"></canvas><canvas id="rejilla"></canvas><video id="video"></video><div id="fps"></div>
 <script src="../lib/three.min.js"></script><script src="../lib/BufferGeometryUtils.js"></script><script src="../lib/postpro.js"></script><script src="../lib/ImprovedNoise.js"></script>
 <script>window.HG = { BASE: "../" };</script>
-<script src="../js/datos.js"></script><script src="../js/motor.js"></script><script src="../js/personajes.js"></script><script src="../js/mallas.js"></script>
+<script src="../js/idioma.js"></script><script src="../js/datos.js"></script><script src="../js/motor.js"></script><script src="../js/personajes.js"></script><script src="../js/mallas.js"></script>
 <script>
 // Visor para revisar los personajes horneados. Parámetros (en la dirección):
 //   ids=haluski,kenji   modo=color|zona|parte|hueso|sombra   e=quieto|andar|correr|saltar|picar|saludar|pilotar   t=1.3
-//   vista=frente|lado|espalda|tres|cara|caralado|manos   ry=0   rejilla=1   norm=1 (altura 1: coordenadas del ajuste)   sincara=1
+//   vista=frente|lado|espalda|tres|cara|caralado|manos   ry=0   rejilla=1   norm=1 (altura 1: coordenadas del ajuste)   sincara=1   rasgos=1|0 (ojos, cejas y boca pintados)
 //   w=1200&h=800   ventana=x0,x1,y0,y1 (vistas ortográficas)   paso=0.01 (separación de la rejilla)
 const T = THREE, Q = new URLSearchParams(location.search), num = (k, d) => Q.has(k) ? +Q.get(k) : d;
 const W = num("w", 1200), H = num("h", 800);
@@ -29,7 +29,7 @@ const relleno = new T.DirectionalLight(HG.lin("#ffd9b8"), 0.45); relleno.positio
 Promise.all(defs.map(d => HG.Mallas.cargar(d.malla))).then(async () => {
   const sep = num("sep", defs[0].altura * 0.75);
   const ps = defs.map((d, i) => {
-    const p = HG.Mallas.crear(d, { modo, sinCara: Q.get("sincara") === "1" });
+    const p = HG.Mallas.crear(d, { modo, sinCara: Q.get("sincara") === "1", rasgos: Q.has("rasgos") ? Q.get("rasgos") === "1" : undefined });
     p.grupo.position.x = (i - (defs.length - 1) / 2) * sep; p.grupo.rotation.y = num("ry", 0); esc.add(p.grupo);
     p.animar(estado, t, 0.016); return p;
   });

@@ -71,6 +71,94 @@ def soldar(V, F, tol=1e-6, X=None):
     return V2, F2[a > 1e-14], X
 
 
+def subdividir(V, F, X=None, niveles=1, suave=8):
+    """Para los modelos con pocos triángulos: parte cada triángulo en cuatro (por los puntos medios de sus aristas)
+    y suaviza con Taubin (λ/μ), que redondea las facetas sin encoger la figura. X: coordenadas de textura por esquina."""
+    for _ in range(niveles):
+        E = np.sort(np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), axis=1)
+        Eu, inv = np.unique(E, axis=0, return_inverse=True); inv = inv.reshape(3, -1)
+        mid = len(V) + np.arange(len(Eu))
+        V = np.vstack([V, (V[Eu[:, 0]] + V[Eu[:, 1]]) / 2])
+        a, b, c = F[:, 0], F[:, 1], F[:, 2]; ab, bc, ca = mid[inv[0]], mid[inv[1]], mid[inv[2]]
+        F = np.concatenate([np.stack([a, ab, ca], 1), np.stack([ab, b, bc], 1), np.stack([ca, bc, c], 1), np.stack([ab, bc, ca], 1)])
+        if X is not None:
+            A, B, C = X[:, 0], X[:, 1], X[:, 2]; AB, BC, CA = (A + B) / 2, (B + C) / 2, (C + A) / 2
+            X = np.concatenate([np.stack([A, AB, CA], 1), np.stack([AB, B, BC], 1), np.stack([CA, BC, C], 1), np.stack([AB, BC, CA], 1)])
+    Ea = np.unique(np.sort(np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), axis=1), axis=0)
+    grado = np.maximum(np.bincount(Ea.ravel(), minlength=len(V)), 1).astype(float)[:, None]
+    for _ in range(suave):
+        for lam in (0.5, -0.53):
+            suma = np.zeros_like(V); np.add.at(suma, Ea[:, 0], V[Ea[:, 1]]); np.add.at(suma, Ea[:, 1], V[Ea[:, 0]])
+            V = V + lam * (suma / grado - V)
+    return V, F, X
+
+
+def quitar_picos(V, F, it=30, umbral=1.2):
+    """Aplana las puntas y aletas finas (vértices muy separados de la media de sus vecinos) sin tocar el resto."""
+    E = np.unique(np.sort(np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), axis=1), axis=0)
+    grado = np.maximum(np.bincount(E.ravel(), minlength=len(V)), 1).astype(float)[:, None]
+    lmed = np.linalg.norm(V[E[:, 0]] - V[E[:, 1]], axis=1).mean()
+    for _ in range(it):
+        suma = np.zeros_like(V); np.add.at(suma, E[:, 0], V[E[:, 1]]); np.add.at(suma, E[:, 1], V[E[:, 0]])
+        lap = suma / grado - V
+        pico = np.linalg.norm(lap, axis=1) > umbral * lmed
+        if not pico.any():
+            break
+        V = V + 0.7 * lap * pico[:, None]
+    return V
+
+
+def desplegar(V, F, it=80):
+    """Deshace los pliegues (triángulos vueltos del revés respecto a sus vecinos), que se ven como dientes de sierra
+    en el contorno: relaja solo los vértices de esos triángulos y sus vecinos hasta que no quede ninguno."""
+    E = np.unique(np.sort(np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), axis=1), axis=0)
+    grado = np.maximum(np.bincount(E.ravel(), minlength=len(V)), 1).astype(float)[:, None]
+    for _ in range(it):
+        fn = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
+        vn = np.zeros_like(V)
+        for k in range(3):
+            np.add.at(vn, F[:, k], fn)
+        vn /= np.maximum(np.linalg.norm(vn, axis=1, keepdims=True), 1e-12)
+        media = (vn[F[:, 0]] + vn[F[:, 1]] + vn[F[:, 2]]) / 3
+        malo = np.einsum("ij,ij->i", fn, media) < 0
+        if not malo.any():
+            break
+        zona = np.zeros(len(V), dtype=bool); zona[F[malo].ravel()] = True
+        z2 = zona.copy(); z2[E[zona[E[:, 0]], 1]] = True; z2[E[zona[E[:, 1]], 0]] = True   # y sus vecinos
+        suma = np.zeros_like(V); np.add.at(suma, E[:, 0], V[E[:, 1]]); np.add.at(suma, E[:, 1], V[E[:, 0]])
+        V = np.where(z2[:, None], V + 0.6 * (suma / grado - V), V)
+    return V
+
+
+def cerrar_huecos(V, F, X=None):
+    """Cierra cada agujero (bucle de aristas de borde) con un abanico desde su centro: después de quitar aletas
+    con "quitar" la malla vuelve a estar cerrada y el suavizado la deja lisa en lugar de con bordes rasgados."""
+    E = np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]])
+    todas = set(map(tuple, E.tolist()))
+    sig = {}
+    for a, b in E.tolist():
+        if (b, a) not in todas:
+            sig[a] = b
+    nuevosV, nuevasF, visto = [], [], set()
+    for ini in list(sig):
+        if ini in visto:
+            continue
+        bucle, v = [], ini
+        while v not in visto and v in sig:
+            visto.add(v); bucle.append(v); v = sig[v]
+        if len(bucle) < 3:
+            continue
+        c = len(V) + len(nuevosV); nuevosV.append(V[bucle].mean(axis=0))
+        for i in range(len(bucle)):
+            nuevasF.append([bucle[(i + 1) % len(bucle)], bucle[i], c])
+    if not nuevosV:
+        return V, F, X
+    F2 = np.vstack([F, np.array(nuevasF)])
+    if X is not None:
+        X = np.concatenate([X, np.repeat(X.mean(axis=0, keepdims=True), len(nuevasF), axis=0)])
+    return np.vstack([V, np.array(nuevosV)]), F2, X
+
+
 def compactar(V, F):
     usados = np.unique(F)
     mapa = -np.ones(len(V), dtype=np.int64); mapa[usados] = np.arange(len(usados))
@@ -431,6 +519,21 @@ def pesos_parte(P, parte, J):
     return orden.astype(np.uint8), wv
 
 
+def suavizar_pesos(si, sw, F, it, nh=15):
+    """Reparte los pesos de piel con los vecinos (por las aristas que siguen unidas tras rasgar):
+    el paso del brazo al tronco deja de ser un escalón y el hombro no hace dientes de sierra al moverse."""
+    n = len(si); W = np.zeros((n, nh))
+    np.add.at(W, (np.repeat(np.arange(n), 4), si.ravel().astype(np.int64)), sw.ravel())
+    E = np.unique(np.sort(np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), axis=1), axis=0)
+    grado = np.maximum(np.bincount(E.ravel(), minlength=n), 1).astype(float)[:, None]
+    for _ in range(it):
+        suma = np.zeros_like(W); np.add.at(suma, E[:, 0], W[E[:, 1]]); np.add.at(suma, E[:, 1], W[E[:, 0]])
+        W = 0.5 * W + 0.5 * suma / grado
+    orden = np.argsort(-W, axis=1)[:, :4]
+    wv = np.take_along_axis(W, orden, axis=1); wv /= np.maximum(wv.sum(axis=1, keepdims=True), 1e-9)
+    return orden.astype(np.uint8), wv
+
+
 # ---------------------------------------------------------------- rasgar y tapar
 def rasgar(V, F, parte, J, cfg):
     """Rasga donde dos partes que se separan al moverse están unidas y cierra cada abertura con una tapa."""
@@ -685,6 +788,13 @@ def hornear(id_, depurar=None):
         V[:, 0] *= -1; V[:, 2] *= -1
     V, F, UV = quitar_cajas(V, F, cfg.get("quitar"), UV)
     V, F, UV = quitar_sueltas(V, F, cfg.get("piezaMinima", 40), UV)
+    if cfg.get("subdividir"):   # modelos con pocos triángulos: se cierran los agujeros de "quitar", se subdividen y se suavizan
+        V, F, UV = cerrar_huecos(V, F, UV)
+        V, F, UV = subdividir(V, F, UV, cfg["subdividir"], cfg.get("suavizarMalla", 8))
+        if cfg.get("quitarPicos"):
+            V = quitar_picos(V, F, 40, cfg["quitarPicos"])
+        if cfg.get("desplegar"):
+            V = desplegar(V, F, cfg["desplegar"])
     J = cfg["J"]; R = cfg["radios"]
     fn, area = normales_cara(V, F)
     vn = normales_vertice(V, F, fn, area)
@@ -720,6 +830,8 @@ def hornear(id_, depurar=None):
     sombra2 = np.where(origen >= 0, sombra[np.maximum(origen, 0)], 0.35)   # las paredes de dentro, en sombra
     alto2 = np.where(origen >= 0, alto[np.maximum(origen, 0)], 0.0)
     si, sw = pesos_parte(V2, parte2, J)
+    if cfg.get("suavizarPesos"):
+        si, sw = suavizar_pesos(si, sw, F2, cfg["suavizarPesos"])
     # zona de cada triángulo
     fn2, area2 = normales_cara(V2, F2)
     Vc = V2[F2].mean(axis=1)
