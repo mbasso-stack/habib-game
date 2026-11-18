@@ -234,7 +234,8 @@ HG.Mallas = {
     const h = { cadera, columna, cabeza, hombros: [], codos: [], manos: [], muslos: [], rodillas: [], tobillos: [], ojos: [], parpados: [] };
     const huesos = [cadera, columna, cabeza];
     for (const s of [-1, 1]) {
-      const ho = hueso(columna, s * J.hom[0] * A, (J.hom[1] - J.cin) * A, 0), co = hueso(ho, s * (J.cod[0] - J.hom[0]) * A, (J.cod[1] - J.hom[1]) * A, 0), ma = hueso(co, s * (J.mun[0] - J.cod[0]) * A, (J.mun[1] - J.cod[1]) * A, 0);
+      const L = Object.assign({}, J, J[s < 0 ? "D" : "I"]); // cada brazo puede tener sus propias articulaciones (modelos no simétricos)
+      const ho = hueso(columna, s * L.hom[0] * A, (L.hom[1] - J.cin) * A, 0), co = hueso(ho, s * (L.cod[0] - L.hom[0]) * A, (L.cod[1] - L.hom[1]) * A, 0), ma = hueso(co, s * (L.mun[0] - L.cod[0]) * A, (L.mun[1] - L.cod[1]) * A, 0);
       h.hombros.push(ho); h.codos.push(co); h.manos.push(ma); huesos.push(ho, co, ma);
     }
     for (const s of [-1, 1]) {

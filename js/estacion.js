@@ -301,7 +301,7 @@ const ZONAS = () => [
   { x: HANG.x, z: HANG.z, r: 9, zona: "hangar", texto: "Ver tu nave en el hangar" },
   { x: PAD.x, z: PAD.z, r: 7.5, zona: "despegar", texto: "Despegar" },
 ];
-let zonaCerca = null;
+let zonaCerca = null, robotVio = false, robotSaluda = 0;
 
 HG.Estacion = {
   escena,
@@ -316,7 +316,12 @@ HG.Estacion = {
     prepararJugador();
     control.actualizar(dt, activo, HG.P.comida <= 0 ? 0.5 : 1);
     jugador.animar(control.estado, t, dt);
-    robot.animar("quieto", t, dt);
+    // el robot saluda cuando te acercas al mostrador
+    const cercaRobot = Math.hypot(control.pos.x - robot.grupo.position.x, control.pos.z - robot.grupo.position.z) < 9;
+    if (cercaRobot && !robotVio) { robotVio = true; robotSaluda = 2.2; }
+    if (!cercaRobot) robotVio = false;
+    robotSaluda -= dt;
+    robot.animar(robotSaluda > 0 ? "saludar" : "quieto", t, dt);
     picarCarbon(dt, activo);
     holoPlaneta.rotation.y += dt * 0.6; holo.rotation.y += dt * 0.15; planetaVentana.rotation.y += dt * 0.004;
     for (let i = 0; i < POLVO; i++) { pp[i * 3 + 1] += Math.sin(t * 0.3 + i) * dt * 0.05; pp[i * 3] += dt * 0.05; if (pp[i * 3] > AN) pp[i * 3] = -AN; }

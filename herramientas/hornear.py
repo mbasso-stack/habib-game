@@ -251,9 +251,16 @@ class Flujo:
                 total += f
 
 
+def lado_J(J, lado):
+    """Articulaciones de un lado: las comunes con lo que cambie J["D"] (brazo derecho, x < 0) o J["I"] (izquierdo).
+    Sirve para los modelos que no son simétricos (un brazo más pegado al cuerpo que el otro)."""
+    o = dict(J); o.update(J.get("D" if lado < 0 else "I", {})); return o
+
+
 def separar_brazo(V, F, E, vn, J, R, lado):
     """True para los vértices del brazo de ese lado (lado -1 = derecho, en x < 0)."""
     sx = lado
+    J = lado_J(J, lado)
     ho = np.array([sx * J["hom"][0], J["hom"][1], J.get("brazoZ", 0.0)])
     co = np.array([sx * J["cod"][0], J["cod"][1], J.get("brazoZ", 0.0)])
     mu = np.array([sx * J["mun"][0], J["mun"][1], J.get("manoZ", J.get("brazoZ", 0.0))])
@@ -269,8 +276,9 @@ def separar_brazo(V, F, E, vn, J, R, lado):
         d, _ = dist_seg(V, a, b); dA = np.minimum(dA, d / r)
     # el cuerpo: elipse del tronco a cada altura, piernas, pelvis y la línea de los hombros
     if "troncoY" not in R:
-        R["troncoY"], R["troncoX"], R["troncoZ"], R["troncoCZ"] = perfil_tronco(V, F, J, R)
-    rx = np.interp(V[:, 1], R["troncoY"], R["troncoX"]); rz = np.interp(V[:, 1], R["troncoY"], R["troncoZ"])
+        R["troncoY"], R["troncoXD"], R["troncoXI"], R["troncoZ"], R["troncoCZ"] = perfil_tronco(V, F, J, R)
+        R["troncoX"] = list(np.maximum(R["troncoXD"], R["troncoXI"]))
+    rx = np.interp(V[:, 1], R["troncoY"], R["troncoXD"] if lado < 0 else R["troncoXI"]); rz = np.interp(V[:, 1], R["troncoY"], R["troncoZ"])
     yc = np.clip(V[:, 1], J["cad"] - 0.05, J["cue"])
     dT = np.sqrt((V[:, 0] / rx) ** 2 + ((V[:, 2] - R.get("troncoCZ", 0.0)) / rz) ** 2 + ((V[:, 1] - yc) / 0.06) ** 2)
     dP, _ = dist_seg(V, np.array([sx * J["xp"], J["ing"], 0]), np.array([sx * J["xp"], 0.0, 0]))
@@ -334,7 +342,8 @@ def corte(V, F, y):
 
 def perfil_tronco(V, F, J, R):
     """Semiejes del tronco a cada altura (x e z): el trozo de la sección que contiene x = 0, sin los brazos."""
-    ys, rxs, rzs, czs = [], [], [], []
+    ys, rxd, rxi, rzs, czs = [], [], [], [], []
+    hD, hI = lado_J(J, -1)["hom"][0], lado_J(J, 1)["hom"][0]
     for y in np.arange(J["cad"] - 0.06, J["cue"] + 0.001, 0.01):
         sg = corte(V, F, y)
         if not len(sg):
@@ -347,12 +356,13 @@ def perfil_tronco(V, F, J, R):
             else:
                 grupos.append([x0, x1, [i]])
         g = min(grupos, key=lambda g: 0 if g[0] <= 0 <= g[1] else min(abs(g[0]), abs(g[1])))
-        rx = max(-g[0], g[1])
-        if y < J["hom"][1] - 0.02:
-            rx = min(rx, J["hom"][0] - 0.01)   # si el brazo está pegado al costado, el tronco no pasa del hombro
+        d, i = max(-g[0], 0.02), max(g[1], 0.02)
+        if y < J["hom"][1] - 0.02:   # si el brazo está pegado al costado, el tronco no pasa del hombro
+            d, i = min(d, hD - 0.01), min(i, hI - 0.01)
         zz = sg[g[2]][:, [1, 3]]
-        ys.append(float(y)); rxs.append(rx * R.get("troncoEscalaX", 1.0)); rzs.append((zz.max() - zz.min()) / 2 * R.get("troncoEscalaZ", 1.0)); czs.append((zz.max() + zz.min()) / 2)
-    return ys, rxs, rzs, float(np.median(czs))
+        ex = R.get("troncoEscalaX", 1.0)
+        ys.append(float(y)); rxd.append(d * ex); rxi.append(i * ex); rzs.append((zz.max() - zz.min()) / 2 * R.get("troncoEscalaZ", 1.0)); czs.append((zz.max() + zz.min()) / 2)
+    return ys, rxd, rxi, rzs, float(np.median(czs))
 
 
 # ---------------------------------------------------------------- pesos
@@ -364,8 +374,8 @@ def pesos_parte(P, parte, J):
         m = parte == pid
         if not m.any():
             continue
-        Q = P[m]
-        ho = np.array([lado * J["hom"][0], J["hom"][1]]); co = np.array([lado * J["cod"][0], J["cod"][1]]); mu = np.array([lado * J["mun"][0], J["mun"][1]])
+        Q = P[m]; Jl = lado_J(J, lado)
+        ho = np.array([lado * Jl["hom"][0], Jl["hom"][1]]); co = np.array([lado * Jl["cod"][0], Jl["cod"][1]]); mu = np.array([lado * Jl["mun"][0], Jl["mun"][1]])
         def tproj(a, b):
             d = b - a; return ((Q[:, :2] - a) @ d) / (d @ d)
         tc = tproj(ho, co); tm = tproj(co, mu)
@@ -401,7 +411,7 @@ def pesos_parte(P, parte, J):
         # el tronco junto a la articulación del hombro sigue un poco al brazo (hombro redondo al levantarlo)
         h_peso = np.zeros(len(ii)); h_idx = np.zeros(len(ii), dtype=int)
         for lado, b0 in ((-1, 3), (1, 6)):
-            d = np.sqrt((Q[:, 0] - lado * J["hom"][0]) ** 2 + ((Q[:, 1] - J["hom"][1]) * 1.2) ** 2 + (Q[:, 2] * 0.8) ** 2)
+            d = np.sqrt((Q[:, 0] - lado * lado_J(J, lado)["hom"][0]) ** 2 + ((Q[:, 1] - J["hom"][1]) * 1.2) ** 2 + (Q[:, 2] * 0.8) ** 2)
             w = sstep(0.085, 0.03, d) * 0.65 * (np.sign(Q[:, 0]) == lado)
             mejor = w > h_peso
             h_peso = np.where(mejor, w, h_peso); h_idx = np.where(mejor, b0, h_idx)
@@ -461,9 +471,9 @@ def rasgar(V, F, parte, J, cfg):
     # tapas: bordes nuevos (aristas que solo tiene un triángulo y que antes tenían dos)
     def bordes(Fx):
         cuenta = defaultdict(int); dirig = {}
-        for t in Fx:
+        for i, t in enumerate(Fx):
             for a, b in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
-                cuenta[(min(a, b), max(a, b))] += 1; dirig[(a, b)] = True
+                cuenta[(min(a, b), max(a, b))] += 1; dirig[(a, b)] = i
         return cuenta, dirig
     c0, _ = bordes([[origen[a] for a in t] for t in F])
     c1, d1 = bordes(F2)
@@ -478,30 +488,52 @@ def rasgar(V, F, parte, J, cfg):
         while padre[a] != a:
             padre[a] = padre[padre[a]]; a = padre[a]
         return a
+    # cada lado del corte lleva su propia tapa: si una tapa uniera el lado del brazo con el del tronco,
+    # sus triángulos se estirarían como aletas al levantar el brazo
+    lado_de = {(a, b): tri_parte[d1[(a, b)]] if d1[(a, b)] < len(F) else parte2[a] for (a, b) in medio}
     for a, b in medio:
-        padre[raiz(a)] = raiz(b)
+        padre[raiz((a, lado_de[(a, b)]))] = raiz((b, lado_de[(a, b)]))
     grupos = defaultdict(list)
     for a, b in medio:
-        grupos[raiz(a)].append((a, b))
-    nuevos_v, nuevas_f, partes_extra, tapas = [], [], [], []
+        grupos[raiz((a, lado_de[(a, b)]))].append((a, b))
+    # cada borde se cierra con una pared que va hacia el eje de su parte (el hueso del brazo, el eje de la pierna
+    # o el centro del tronco): así la tapa queda dentro del volumen y no se ve como un abanico al mover el brazo
+    def eje(P, pid):
+        if pid in (BRAZO_D, BRAZO_I):
+            Jl = lado_J(J, -1 if pid == BRAZO_D else 1); sx = -1 if pid == BRAZO_D else 1
+            cad = [np.array([sx * Jl[k][0], Jl[k][1], 0.0]) for k in ("hom", "cod", "mun")]
+            mejor, dm = None, 9.0
+            for a, b in zip(cad[:-1], cad[1:]):
+                d = b - a; t = np.clip((P - a) @ d / (d @ d), 0, 1); q = a + t * d; dd = np.linalg.norm(P - q)
+                if dd < dm:
+                    mejor, dm = q, dd
+            return mejor
+        if pid in (PIERNA_D, PIERNA_I):
+            return np.array([(-1 if pid == PIERNA_D else 1) * J["xp"], P[1], 0.0])
+        return np.array([0.0, P[1], 0.0])
+    nuevos_v, nuevas_f, partes_extra, fuente = [], [], [], []
     base = len(V2)
     for g, lados in grupos.items():
         vs = sorted({a for e in lados for a in e})
         if len(vs) < 3:
             continue
-        centro = V2[vs].mean(axis=0)
-        # la tapa se hunde un poco hacia dentro para que no sobresalga
-        c = base + len(nuevos_v)
-        nuevos_v.append(centro); partes_extra.append(parte2[vs[0]])
+        pid = lado_de[lados[0]]; dentro = {}
+        for v in vs:
+            dentro[v] = base + len(nuevos_v)
+            # pared corta (2 % de la altura): si el eje queda fuera de una malla tosca, una pared larga asomaría
+            paso = 0.75 * (eje(V2[v], pid) - V2[v])
+            paso *= min(1.0, 0.02 / max(np.linalg.norm(paso), 1e-9))
+            nuevos_v.append(V2[v] + paso); partes_extra.append(pid); fuente.append(v)
         for a, b in lados:
-            nuevas_f.append([b, a, c]); tapas.append(True)
+            nuevas_f.append([b, a, dentro[a]]); nuevas_f.append([dentro[a], dentro[b], b])
     if nuevos_v:
         V2 = np.vstack([V2, np.array(nuevos_v)])
         parte2 = np.concatenate([parte2, np.array(partes_extra)])
         F2 = np.vstack([F2, np.array(nuevas_f)])
     es_tapa = np.concatenate([np.zeros(len(F), dtype=bool), np.ones(len(nuevas_f), dtype=bool)])
     origen = np.concatenate([np.array(origen), -np.ones(len(nuevos_v), dtype=np.int64)])
-    return V2, F2, parte2, origen, es_tapa, len(grupos)
+    fuente = np.concatenate([np.full(len(V2) - len(nuevos_v), -1, dtype=np.int64), np.array(fuente, dtype=np.int64)])
+    return V2, F2, parte2, origen, es_tapa, len(grupos), fuente
 
 
 # ---------------------------------------------------------------- zonas de color
@@ -672,22 +704,20 @@ def hornear(id_, depurar=None):
     parte[piernas & (V[:, 0] < 0)] = PIERNA_D
     parte[piernas & (V[:, 0] >= 0)] = PIERNA_I
     # rasgar y tapar
-    V2, F2, parte2, origen, es_tapa, n_tapas = rasgar(V, F, parte, J, cfg)
+    V2, F2, parte2, origen, es_tapa, n_tapas, fuente = rasgar(V, F, parte, J, cfg)
     if UV is not None:  # las tapas toman la textura de las esquinas vecinas; el centro, la media
         uv_v = np.zeros((len(V2), 2)); hay = np.zeros(len(V2), dtype=bool)
         for i in range(len(F)):
             for k in range(3):
                 uv_v[F2[i, k]] = UV[i, k]; hay[F2[i, k]] = True
         UVt = [UV]
+        nv = np.nonzero(fuente >= 0)[0]; uv_v[nv] = uv_v[fuente[nv]]   # la pared toma la textura de su borde
         for t in F2[len(F):]:
-            if not hay[t[2]]:
-                vec = [u for u in F2[len(F):] if u[2] == t[2]]
-                uv_v[t[2]] = np.mean([uv_v[u[0]] for u in vec], axis=0); hay[t[2]] = True
             UVt.append(uv_v[t][None])
         UV2 = np.concatenate(UVt)
     else:
         UV2 = None
-    sombra2 = np.where(origen >= 0, sombra[np.maximum(origen, 0)], 0.6)
+    sombra2 = np.where(origen >= 0, sombra[np.maximum(origen, 0)], 0.35)   # las paredes de dentro, en sombra
     alto2 = np.where(origen >= 0, alto[np.maximum(origen, 0)], 0.0)
     si, sw = pesos_parte(V2, parte2, J)
     # zona de cada triángulo
@@ -703,7 +733,7 @@ def hornear(id_, depurar=None):
                 for v in t:
                     vf[v].append(i)
         for i in np.nonzero(es_tapa)[0]:
-            vec = [zona[j] for v in F2[i][:2] for j in vf[v]]
+            vec = [zona[j] for v in F2[i] for j in vf[v]]
             if vec:
                 zona[i] = np.bincount(vec).argmax()
     # normales: en la cabeza más suaves

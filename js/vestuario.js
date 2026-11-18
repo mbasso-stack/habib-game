@@ -24,7 +24,7 @@ HG.Vestuario = {
   escena, camara,
   get sel() { return sel; },
   abrir(fn) { alElegir = fn; bloqueo = 0.6; HG.input.finFrame(); this.mostrar(HG.ajustes.aspecto || 0); HG.ui.abrir("vestuario"); },
-  mostrar(i) { sel = (i + modelos.length) % modelos.length; modelos.forEach((m, k) => { m.grupo.visible = k === sel; }); saludo = 1.6; giro = 0; HG.ui.repintar(); },
+  mostrar(i) { sel = (i + modelos.length) % modelos.length; modelos.forEach((m, k) => { m.grupo.visible = k === sel; }); saludo = 2.4; giro = 0; HG.ui.repintar(); },
   elegir() { HG.ajustes.aspecto = sel; HG.guardarAjustes(); HG.audio.sfx("compra"); HG.ui.cerrar(); },
   alCerrar() { const f = alElegir; alElegir = null; if (f) f(); },
   actualizar(dt, t) {
@@ -35,7 +35,7 @@ HG.Vestuario = {
     if (bloqueo <= 0 && I.pulsada("Enter")) this.elegir();
     giro += dt * 0.5; if (saludo > 0) saludo -= dt;
     const m = modelos[sel]; m.grupo.rotation.y = Math.sin(giro) * 0.6;
-    m.animar("quieto", t, dt);
+    m.animar(saludo > 0.3 && saludo < 2.2 ? "saludar" : "quieto", t, dt); // saluda al aparecer y vuelve a la postura de reposo
     const asp = innerWidth / innerHeight; camara.aspect = asp; camara.fov = asp < 1.2 ? 44 : 32; camara.updateProjectionMatrix();
     if (asp < 1.2) { camara.position.set(0, 1.3, 5.6); camara.lookAt(0, 0.55, 0); } // pantalla estrecha: personaje arriba, panel abajo
     else { camara.position.set(1.35, 1.15, 5.2); camara.lookAt(1.35, 1.05, 0); } // pantalla ancha: personaje a la izquierda, panel a la derecha

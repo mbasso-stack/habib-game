@@ -491,8 +491,12 @@ function fusionar(raiz) {
 // Animación por huesos (los mismos nombres en los personajes de código y en los de malla)
 HG.animacion = (h, cadera, col, cadY, opc = {}) => {
   const reposoZ = opc.reposoZ ?? 0.1;
-  let parpadeo = HG.rnd(1, 4), mirada = 0, mirarA = 0;
+  let parpadeo = HG.rnd(1, 4), mirada = 0, mirarA = 0, previo = null;
+  const huesos = [cadera, col, h.cabeza, ...h.hombros, ...h.codos, ...h.manos, ...h.muslos, ...h.rodillas, ...h.tobillos];
   return (estado, t, dt = 0.016) => {
+    // la postura anterior se guarda para pasar de una animación a otra sin saltos
+    if (previo) huesos.forEach((b, i) => previo[i].copy(b.quaternion)); else previo = huesos.map(b => b.quaternion.clone());
+    const cadPrev = cadera.position.clone();
     // postura neutra
     for (let i = 0; i < 2; i++) {
       const s = i ? 1 : -1;
@@ -522,8 +526,10 @@ HG.animacion = (h, cadera, col, cadY, opc = {}) => {
       h.hombros[0].rotation.x = -1.15 + (1 - sw) * 1.0; h.codos[0].rotation.x = -1.0 + (1 - sw) * 0.5; // el pico va en la mano derecha; la izquierda queda abajo
       col.rotation.x = 0.1 + (1 - sw) * 0.35; h.muslos[0].rotation.x = -0.35; h.rodillas[0].rotation.x = 0.4; h.muslos[1].rotation.x = 0.15; h.rodillas[1].rotation.x = 0.1;
     } else if (estado === "saludar") {
-      h.hombros[0].rotation.set(-0.15, 0, -0.55); h.codos[0].rotation.set(0, 0, -2.1 + Math.sin(t * 8) * 0.3); // saluda con el antebrazo
-      h.cabeza.rotation.z = 0.1; col.rotation.z = 0.04;
+      // saluda con el antebrazo: el brazo apenas se separa del costado (las mallas no tienen axila) y el codo hace el gesto
+      const w = Math.sin(t * 7);
+      h.hombros[0].rotation.set(-0.42, 0.25, -0.3); h.codos[0].rotation.set(-1.25, 0, -0.75 + w * 0.22); h.manos[0].rotation.set(0, 0.5, w * 0.12);
+      h.cabeza.rotation.set(-0.04, -0.12, 0.06); col.rotation.set(0, -0.06, 0.02);
       h.hombros[1].rotation.x = Math.sin(t * 1.6) * 0.03;
     } else if (estado === "pilotar") {
       for (let i = 0; i < 2; i++) { h.muslos[i].rotation.x = -1.5; h.rodillas[i].rotation.x = 1.5; h.hombros[i].rotation.x = -0.6; h.codos[i].rotation.x = -0.7; }
@@ -536,6 +542,10 @@ HG.animacion = (h, cadera, col, cadY, opc = {}) => {
       col.rotation.x = r * 0.02; col.rotation.z = -cadera.rotation.z * 0.7;
       h.cabeza.rotation.y = Math.sin(t * 0.45) * 0.25; h.cabeza.rotation.z = cadera.rotation.z * 0.3;
     }
+    // mezcla suave con la postura anterior (andar → quieto, saludar → quieto, etc.)
+    const k = 1 - Math.exp(-dt * 12);
+    huesos.forEach((b, i) => b.quaternion.copy(previo[i].slerp(b.quaternion, k)));
+    if (cadPrev.lengthSq() > 0) cadera.position.lerpVectors(cadPrev, cadera.position, k);
     // ojos: pequeños movimientos y parpadeo
     mirada -= dt; if (mirada < 0) { mirada = HG.rnd(0.6, 2.2); mirarA = HG.rnd(-0.2, 0.2); }
     for (const o of h.ojos) o.rotation.y = HG.lerp(o.rotation.y, mirarA, Math.min(1, dt * 20));
