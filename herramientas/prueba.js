@@ -1,6 +1,6 @@
 // Prueba de humo del juego completo: recorre menú, selector de personaje, estación, tiendas, espacio y un planeta,
 // guarda una captura de cada escena y falla si hay algún error de JavaScript.
-//   cd /tmp && NODE_PATH=$(npm root -g) node /ruta/al/repo/herramientas/prueba.js carpeta_capturas [ancho alto]
+//   cd /tmp && [IDIOMA=es|en] NODE_PATH=$(npm root -g) node /ruta/al/repo/herramientas/prueba.js carpeta_capturas [ancho alto]
 const http = require("http"), fs = require("fs"), path = require("path");
 const { chromium } = require("playwright");
 const RAIZ = path.resolve(__dirname, "..");
@@ -18,6 +18,7 @@ const salida = path.resolve(process.argv[2] || "capturas"), W = +(process.argv[3
   const url = `http://127.0.0.1:${servidor.address().port}/index.html`;
   const nav = await chromium.launch({ args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--autoplay-policy=no-user-gesture-required"] });
   const pag = await nav.newPage({ viewport: { width: W, height: H } });
+  if (process.env.IDIOMA) await pag.addInitScript(i => { try { localStorage.setItem("haluski_ajustes", JSON.stringify({ idioma: i })); } catch (e) {} }, process.env.IDIOMA); // IDIOMA=es o en
   const errores = [];
   pag.on("pageerror", e => errores.push("pageerror: " + e.message));
   pag.on("console", m => { if (m.type() === "error" && !/404|Failed to load resource/.test(m.text())) errores.push("console: " + m.text()); });

@@ -83,7 +83,7 @@ function geometria(d, modo) {
   return geos[clave] = g;
 }
 const mats = {};
-const cargaTex = (archivo, srgb) => { const t = new T.TextureLoader().load(`${HG.BASE || ""}modelos/personajes/${archivo}?v=9`); if (srgb) t.encoding = T.sRGBEncoding; t.anisotropy = 8; return t; };
+const cargaTex = (archivo, srgb) => { const t = new T.TextureLoader().load(`${HG.BASE || ""}modelos/personajes/${archivo}?v=10`); if (srgb) t.encoding = T.sRGBEncoding; t.anisotropy = 8; return t; };
 // Modelo con texturas propias (color, relieve, rugosidad y metal)
 function materialTexturas(M) {
   const tx = M.meta.textura, m = new T.MeshStandardMaterial({ vertexColors: true, skinning: true, side: T.DoubleSide, roughness: 1, metalness: 1 });
@@ -223,8 +223,8 @@ HG.Mallas = {
   cargar(id) {
     if (cache[id]) return Promise.resolve(cache[id]);
     return esperas[id] || (esperas[id] = Promise.all([
-      fetch(`${HG.BASE || ""}modelos/personajes/${id}.json?v=9`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
-      fetch(`${HG.BASE || ""}modelos/personajes/${id}.bin?v=9`).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }),
+      fetch(`${HG.BASE || ""}modelos/personajes/${id}.json?v=10`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
+      fetch(`${HG.BASE || ""}modelos/personajes/${id}.bin?v=10`).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }),
     ]).then(([meta, buf]) => cache[id] = leer(buf, meta)));
   },
   // Esqueleto y malla de un personaje; devuelve lo mismo que HG.crearPersonaje. opc.modo: "zona", "parte", "hueso" o "sombra" para revisar

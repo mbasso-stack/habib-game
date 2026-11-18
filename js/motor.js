@@ -11,7 +11,7 @@ HG.clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 HG.lerp = (a, b, k) => a + (b - a) * k;
 HG.semilla = n => () => { n = n + 0x6D2B79F5 | 0; let t = Math.imul(n ^ n >>> 15, 1 | n); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 HG.lin = h => new T.Color(h).convertSRGBToLinear();
-HG.fmt = n => Math.floor(n).toLocaleString("es-ES");
+HG.fmt = n => Math.floor(n).toLocaleString(HG.idioma === "en" ? "en-GB" : "es-ES");
 HG.angDif = (a, b) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
 
 // ---------- Render ----------

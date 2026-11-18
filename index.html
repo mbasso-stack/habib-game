@@ -113,18 +113,18 @@ kbd { background: #13254a; border: 1px solid var(--borde); padding: 1px 6px; fon
 <body>
 <canvas id="lienzo"></canvas>
 <div id="hud" class="oculto">
-  <div id="objetivo">Objetivo: <span id="hObjetivo"></span></div>
+  <div id="objetivo"><span data-tr>Objetivo:</span> <span id="hObjetivo"></span></div>
   <div id="hIzq" class="caja-hud">
-    <div class="vuelo-solo"><div class="etq"><span>Casco de la nave</span><span id="tVida"></span></div><div class="barra"><i id="bVida"></i></div></div>
-    <div class="etq"><span>Comida</span><span id="tComida"></span></div><div class="barra"><i id="bComida"></i></div>
+    <div class="vuelo-solo"><div class="etq"><span data-tr>Casco de la nave</span><span id="tVida"></span></div><div class="barra"><i id="bVida"></i></div></div>
+    <div class="etq"><span data-tr>Comida</span><span id="tComida"></span></div><div class="barra"><i id="bComida"></i></div>
   </div>
   <div id="hDer" class="caja-hud">
-    <div><b id="hMonedas">0</b> monedas</div>
-    <div>Carga <span id="hCarga"></span></div>
-    <div>Derrotados <span id="hDerrotas"></span> · Planetas <span id="hPlanetas"></span></div>
+    <div><b id="hMonedas">0</b> <span data-tr>monedas</span></div>
+    <div><span data-tr>Carga</span> <span id="hCarga"></span></div>
+    <div><span data-tr>Derrotados</span> <span id="hDerrotas"></span> · <span data-tr>Planetas</span> <span id="hPlanetas"></span></div>
   </div>
   <div class="vuelo-solo"><div id="mira"></div><div id="cargaPlasma"><i></i></div><div id="hArmas"></div>
-    <div id="hVelCaja" class="caja-hud"><div class="etq"><span>Velocidad</span><span id="hVel"></span></div><div class="barra"><i id="bVel"></i></div></div>
+    <div id="hVelCaja" class="caja-hud"><div class="etq"><span data-tr>Velocidad</span><span id="hVel"></span></div><div class="barra"><i id="bVel"></i></div></div>
     <div id="barraJefe"><span id="nJefe"></span><div class="barra"><i></i></div></div>
     <div id="marcadores"></div>
   </div>
@@ -135,7 +135,7 @@ kbd { background: #13254a; border: 1px solid var(--borde); padding: 1px 6px; fon
 <div id="panel"></div>
 <div id="fundido"></div>
 <div id="fps"></div>
-<video id="video" playsinline preload="auto"></video><div id="saltarVideo">ENTER o clic para saltar ▸</div>
+<video id="video" playsinline preload="auto"></video><div id="saltarVideo" data-tr>ENTER o clic para saltar ▸</div>
 
 <script src="lib/three.min.js"></script>
 <script src="lib/GLTFLoader.js"></script>
@@ -143,16 +143,17 @@ kbd { background: #13254a; border: 1px solid var(--borde); padding: 1px 6px; fon
 <script src="lib/BufferGeometryUtils.js"></script>
 <script src="lib/Lensflare.js"></script>
 <script src="lib/ImprovedNoise.js"></script>
-<script src="js/datos.js?v=9"></script>
-<script src="js/motor.js?v=9"></script>
-<script src="js/personajes.js?v=9"></script>
-<script src="js/mallas.js?v=9"></script>
-<script src="js/modelos.js?v=9"></script>
-<script src="js/ui.js?v=9"></script>
-<script src="js/estacion.js?v=9"></script>
-<script src="js/espacio.js?v=9"></script>
-<script src="js/planeta.js?v=9"></script>
-<script src="js/vestuario.js?v=9"></script>
-<script src="js/juego.js?v=9"></script>
+<script src="js/idioma.js?v=10"></script>
+<script src="js/datos.js?v=10"></script>
+<script src="js/motor.js?v=10"></script>
+<script src="js/personajes.js?v=10"></script>
+<script src="js/mallas.js?v=10"></script>
+<script src="js/modelos.js?v=10"></script>
+<script src="js/ui.js?v=10"></script>
+<script src="js/estacion.js?v=10"></script>
+<script src="js/espacio.js?v=10"></script>
+<script src="js/planeta.js?v=10"></script>
+<script src="js/vestuario.js?v=10"></script>
+<script src="js/juego.js?v=10"></script>
 </body>
 </html>

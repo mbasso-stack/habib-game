@@ -87,7 +87,7 @@ const esc = HG.pivote(escena, -AN + 0.2, 3.4, 14); esc.rotation.y = Math.PI / 2;
 M(new T.TorusGeometry(2.6, 0.45, 12, 40), HG.mat("#7a828d", { r: 0.4, m: 0.8 }), 0, 0, 0, esc);
 M(new T.CircleGeometry(2.4, 40), HG.mat("#1a1e24", { r: 0.8 }), 0, 0, -0.05, esc);
 M(new T.CircleGeometry(1.9, 40), HG.mat("#fff2c8", { e: "#ffe2a0", ei: 0.6 }), 0, 0, -0.3, esc, false);
-const rot = M(new T.PlaneGeometry(6, 0.75), new T.MeshBasicMaterial({ map: HG.texTexto("CREW UNIT 4B · OCUPADO", { color: "#20242a", tam: 44, w: 1024 }), transparent: true }), 0, 3.4, 0.05, esc, false);
+const rot = M(new T.PlaneGeometry(6, 0.75), new T.MeshBasicMaterial({ map: HG.texTexto(HG.t("CREW UNIT 4B · OCUPADO"), { color: "#20242a", tam: 44, w: 1024 }), transparent: true }), 0, 3.4, 0.05, esc, false);
 // líneas de seguridad amarillas
 const linea = (x, z, w, d) => { const p = M(new T.PlaneGeometry(w, d), new T.MeshStandardMaterial({ map: HG.texAviso([Math.max(1, Math.round(Math.max(w, d) / 2)), 1]), roughness: 0.6 }), x, 0.02, z, escena); p.rotation.x = -Math.PI / 2; if (d > w) p.rotation.z = Math.PI / 2, p.scale.set(d / w, w / d, 1); p.castShadow = false; };
 linea(0, -6, 60, 0.5); linea(-8, 8, 0.5, 36);
@@ -98,13 +98,13 @@ const anillo = (x, z, r, color) => { const a = M(new T.RingGeometry(r - 0.35, r,
 const PAD = { x: 6, z: -18 };
 M(new T.CylinderGeometry(8, 8.3, 0.25, 48), HG.mat("#3d434c", { r: 0.5, m: 0.7 }), PAD.x, 0.12, PAD.z, escena);
 anillo(PAD.x, PAD.z, 7.6, "#ffcf3a"); anillo(PAD.x, PAD.z, 5, "#ffcf3a");
-const txtPad = M(new T.PlaneGeometry(8, 2), new T.MeshBasicMaterial({ map: HG.texTexto("DESPEGUE", { color: "#ffd04a", tam: 80 }), transparent: true }), PAD.x, 0.27, PAD.z + 2, escena, false); txtPad.rotation.x = -Math.PI / 2;
+const txtPad = M(new T.PlaneGeometry(8, 2), new T.MeshBasicMaterial({ map: HG.texTexto(HG.t("DESPEGUE"), { color: "#ffd04a", tam: 80 }), transparent: true }), PAD.x, 0.27, PAD.z + 2, escena, false); txtPad.rotation.x = -Math.PI / 2;
 // Hangar de naves (este)
 const HANG = { x: 26, z: 10 };
 M(new T.CylinderGeometry(11, 11.4, 0.3, 48), HG.mat("#3a3f47", { r: 0.5, m: 0.7 }), HANG.x, 0.15, HANG.z, escena);
 anillo(HANG.x, HANG.z, 10.6, "#4cc9f0");
 const holo = HG.pivote(escena, HANG.x, 0, HANG.z);
-cartel("HANGAR", AN - 0.6, 9, 10, -Math.PI / 2, 8);
+cartel(HG.t("HANGAR"), AN - 0.6, 9, 10, -Math.PI / 2, 8);
 const consola = M(HG.cajaR(2.2, 1.1, 1, 0.1), HG.mat("#5a616b", { r: 0.4, m: 0.7 }), 15, 0.55, 2, escena);
 M(new T.PlaneGeometry(1.8, 0.8), HG.mat("#06202a", { e: "#3fe0ff", ei: 0.8 }), 15, 1.15, 2.51, escena, false).rotation.x = -0.4;
 // Tienda (suroeste): mostrador, estanterías y letrero de neón
@@ -117,7 +117,7 @@ for (let i = 0; i < 3; i++) {
 }
 const neon = HG.pivote(escena, TI.x, 5.6, FO - 1.6);
 M(HG.cajaR(9, 2.4, 0.5, 0.5), HG.mat("#1d3550", { r: 0.4, m: 0.6 }), 0, 0, 0, neon);
-M(new T.PlaneGeometry(8.2, 2), new T.MeshBasicMaterial({ map: HG.texTexto("TIENDA", { color: "#ffe0a8", brillo: "#ffb050", tam: 92 }), transparent: true }), 0, 0, -0.27, neon, false).rotation.y = Math.PI;
+M(new T.PlaneGeometry(8.2, 2), new T.MeshBasicMaterial({ map: HG.texTexto(HG.t("TIENDA"), { color: "#ffe0a8", brillo: "#ffb050", tam: 92 }), transparent: true }), 0, 0, -0.27, neon, false).rotation.y = Math.PI;
 for (const [w, h, x, y] of [[9.2, 0.12, 0, 1.2], [9.2, 0.12, 0, -1.2], [0.12, 2.4, 4.6, 0], [0.12, 2.4, -4.6, 0]]) M(new T.BoxGeometry(w, h, 0.12), HG.brillo("#4fd0ff"), x, y, -0.3, neon, false);
 // Sala de clanes (noroeste): mesa holográfica y estandartes
 const CL = { x: -28, z: -18 };
@@ -129,7 +129,7 @@ HG.CLANES_NPC.forEach((c, i) => {
   M(new T.PlaneGeometry(3, 6), HG.mat(c.color, { r: 0.8, dbl: true, e: c.color, ei: 0.15 }), x, 8, -FO + 0.1, escena, false);
   M(new T.PlaneGeometry(2.4, 0.6), new T.MeshBasicMaterial({ map: HG.texTexto(c.nombre.toUpperCase(), { color: "#fff", tam: 40, w: 1024 }), transparent: true }), x, 6, -FO + 0.15, escena, false);
 });
-cartel("SALA DE CLANES", -26, 12, -FO + 0.2, 0, 10, { color: "#dff6ff", fondo: "#1d3550" });
+cartel(HG.t("SALA DE CLANES"), -26, 12, -FO + 0.2, 0, 10, { color: "#dff6ff", fondo: "#1d3550" });
 // cajas y barriles de decoración (también son obstáculos)
 const CAJAS = [[8, 18, 2.4], [11, 21, 1.8], [-6, 20, 2], [34, -24, 2.4], [30, -26, 1.6], [-14, -26, 2]];
 CAJAS.forEach(([x, z, s]) => M(HG.cajaR(s, s, s, 0.12), HG.mat("#5d6570", { r: 0.6, m: 0.5 }), x, s / 2, z, escena));
@@ -205,16 +205,16 @@ function terminal(x, z, ry, titulo, color) {
   return g;
 }
 const TERMINALES = [
-  { x: 17.5, z: 4.5, ry: -2.4, zona: "hangar", titulo: "HANGAR", texto: "Terminal del hangar", color: "#4cc9f0" },
-  { x: -19, z: 19, ry: -2.3, zona: "amigos", titulo: "AMIGOS", texto: "Terminal de amigos", color: "#7CFC9A" },
-  { x: -23, z: -13.5, ry: -2.5, zona: "clanes", titulo: "CLANES", texto: "Terminal de clanes", color: "#b46bff" },
+  { x: 17.5, z: 4.5, ry: -2.4, zona: "hangar", titulo: HG.t("HANGAR"), texto: HG.t("Terminal del hangar"), color: "#4cc9f0" },
+  { x: -19, z: 19, ry: -2.3, zona: "amigos", titulo: HG.t("AMIGOS"), texto: HG.t("Terminal de amigos"), color: "#7CFC9A" },
+  { x: -23, z: -13.5, ry: -2.5, zona: "clanes", titulo: HG.t("CLANES"), texto: HG.t("Terminal de clanes"), color: "#b46bff" },
 ];
 TERMINALES.forEach(t => terminal(t.x, t.z, t.ry, t.titulo, t.color));
 
 // ---------- Mina de carbón y compra de carbón ----------
 const MINA = { x: 27, z: -14 }, VENTA_C = { x: 18, z: -6 };
 const suelo2 = M(new T.CircleGeometry(8.5, 40).rotateX(-Math.PI / 2), HG.mat("#24211f", { r: 0.95 }), MINA.x, 0.015, MINA.z, escena); suelo2.castShadow = false;
-cartel("MINA DE CARBÓN", MINA.x, 6.5, -FO + 0.6, 0, 9, { color: "#ffd9a0", fondo: "#2a1d14" });
+cartel(HG.t("MINA DE CARBÓN"), MINA.x, 6.5, -FO + 0.6, 0, 9, { color: "#ffd9a0", fondo: "#2a1d14" });
 for (const [dx, dz] of [[-7, -6], [7, -6], [-7, 6], [7, 6]]) { // focos de obra
   M(new T.CylinderGeometry(0.07, 0.07, 3.2, 8), HG.mat("#f2c230", { r: 0.5 }), MINA.x + dx, 1.6, MINA.z + dz, escena);
   M(new T.SphereGeometry(0.22, 12, 8), HG.brillo("#fff1c8"), MINA.x + dx, 3.25, MINA.z + dz, escena, false);
@@ -230,7 +230,7 @@ const matCarbon = HG.mat("#141313", { r: 0.35, m: 0.25 }), vetasC = [];
 // vagoneta de decoración y terminal de compra
 M(HG.cajaR(1.8, 0.9, 1.2, 0.08), HG.mat("#6a4a2e", { r: 0.7, m: 0.3 }), MINA.x - 2, 0.75, MINA.z + 7.2, escena);
 for (let i = 0; i < 6; i++) M(HG.geoRoca(700 + i, 1), matCarbon, MINA.x - 2.5 + (i % 3) * 0.5, 1.25, MINA.z + 7 + (i > 2 ? 0.3 : -0.3), escena).scale.setScalar(0.3);
-terminal(VENTA_C.x, VENTA_C.z, -1.2, "COMPRA DE CARBÓN", "#ffb347");
+terminal(VENTA_C.x, VENTA_C.z, -1.2, HG.t("COMPRA DE CARBÓN"), "#ffb347");
 vetasC.forEach(v => cajasCol.push([v.x - v.r * 0.7, v.x + v.r * 0.7, v.z - v.r * 0.7, v.z + v.r * 0.7]));
 const chispasC = [];
 function picarCarbon(dt, activo) {
@@ -251,14 +251,14 @@ function picarCarbon(dt, activo) {
   mejor.espera = 15;
   const cap = HG.CARBON.max, antes = P.carbon || 0, gana = Math.min(cap - antes, HG.rint(2, 4));
   P.carbon = antes + Math.max(0, gana);
-  if (gana > 0) { HG.ui.toast(`+${gana} de carbón (${P.carbon}/${cap})`); HG.audio.sfx("moneda"); }
-  else { HG.ui.toast(`Llevas el máximo de carbón (${cap}). Véndelo en la terminal de compra.`, "rojo"); HG.audio.sfx("error"); }
+  if (gana > 0) { HG.ui.toast(HG.t("+{0} de carbón ({1}/{2})", gana, P.carbon, cap)); HG.audio.sfx("moneda"); }
+  else { HG.ui.toast(HG.t("Llevas el máximo de carbón ({0}). Véndelo en la terminal de compra.", cap), "rojo"); HG.audio.sfx("error"); }
 }
 HG.venderCarbon = () => {
   const P = HG.P, n = P.carbon || 0;
-  if (!n) { HG.ui.toast("No llevas carbón. Pícalo en la mina de la estación.", "rojo"); HG.audio.sfx("error"); return; }
+  if (!n) { HG.ui.toast(HG.t("No llevas carbón. Pícalo en la mina de la estación."), "rojo"); HG.audio.sfx("error"); return; }
   const total = n * HG.CARBON.precio; P.carbon = 0; P.monedas += total;
-  HG.ui.toast(`Vendes ${n} de carbón: +${HG.fmt(total)} monedas`, "oro"); HG.audio.sfx("compra"); HG.guardarPartida();
+  HG.ui.toast(HG.t("Vendes {0} de carbón: +{1} monedas", n, HG.fmt(total)), "oro"); HG.audio.sfx("compra"); HG.guardarPartida();
 };
 
 // robot de la tienda (modelo 3D de Malik)
@@ -295,11 +295,11 @@ function prepararJugador() {
 // ---------- Interacciones ----------
 const ZONAS = () => [
   ...TERMINALES.map(t => ({ x: t.x, z: t.z, r: 3, zona: t.zona, texto: t.texto })),
-  { x: VENTA_C.x, z: VENTA_C.z, r: 3, zona: "carbon", texto: () => `Vender carbón (${HG.P.carbon || 0} × ${HG.CARBON.precio} ●)` },
-  { x: MINA.x, z: MINA.z, r: 8.5, zona: "mina", texto: () => `Mina de carbón · clic o F para picar · llevas ${HG.P.carbon || 0}/${HG.CARBON.max}` },
-  { x: TI.x, z: TI.z - 3.5, r: 4.5, rect: [TI.x - 7.5, TI.x + 6.5, TI.z - 8, TI.z - 1.8], zona: "tienda", texto: "Tienda del robot" }, // todo el frente del mostrador
-  { x: HANG.x, z: HANG.z, r: 9, zona: "hangar", texto: "Ver tu nave en el hangar" },
-  { x: PAD.x, z: PAD.z, r: 7.5, zona: "despegar", texto: "Despegar" },
+  { x: VENTA_C.x, z: VENTA_C.z, r: 3, zona: "carbon", texto: () => HG.t("Vender carbón ({0} × {1} ●)", HG.P.carbon || 0, HG.CARBON.precio) },
+  { x: MINA.x, z: MINA.z, r: 8.5, zona: "mina", texto: () => HG.t("Mina de carbón · clic o F para picar · llevas {0}/{1}", HG.P.carbon || 0, HG.CARBON.max) },
+  { x: TI.x, z: TI.z - 3.5, r: 4.5, rect: [TI.x - 7.5, TI.x + 6.5, TI.z - 8, TI.z - 1.8], zona: "tienda", texto: HG.t("Tienda del robot") }, // todo el frente del mostrador
+  { x: HANG.x, z: HANG.z, r: 9, zona: "hangar", texto: HG.t("Ver tu nave en el hangar") },
+  { x: PAD.x, z: PAD.z, r: 7.5, zona: "despegar", texto: HG.t("Despegar") },
 ];
 let zonaCerca = null, robotVio = false, robotSaluda = 0;
 

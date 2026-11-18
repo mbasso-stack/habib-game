@@ -147,7 +147,7 @@ HG.Planeta = {
     control.colocar(sx, NAVE.z - 6, Math.PI); control.yaw = Math.PI;
     HG.camara.position.set(sx, altura(sx, NAVE.z - 1) + 3, NAVE.z - 1);
     const st = estado();
-    HG.ui.toast(st.conquistado ? `${P.nombre} es tuyo. ¡Sigue picando!` : st.jefe ? `Planta tu bandera en ${P.nombre} para conquistarlo.` : `Derrota a ${P.jefe.nombre} en órbita para conquistar ${P.nombre}.`);
+    HG.ui.toast(st.conquistado ? HG.t("{0} es tuyo. ¡Sigue picando!", P.nombre) : st.jefe ? HG.t("Planta tu bandera en {0} para conquistarlo.", P.nombre) : HG.t("Derrota a {0} en órbita para conquistar {1}.", P.jefe.nombre, P.nombre));
     HG.audio.musica("vuelo");
   },
   actualizar(dt, t, activo) {
@@ -165,7 +165,7 @@ HG.Planeta = {
         control.rumbo = Math.atan2(mejor.x - control.pos.x, mejor.z - control.pos.z);
         if (mejor.vida <= 0) {
           const cant = HG.rint(2, 4), metido = HG.juego.cargar(mejor.mineral, cant);
-          HG.ui.toast(metido > 0 ? `+${metido} ${HG.MINERALES[mejor.mineral].nombre}` : "¡Bodega llena! Vende en la estación.", metido > 0 ? "" : "rojo");
+          HG.ui.toast(metido > 0 ? `+${metido} ${HG.MINERALES[mejor.mineral].nombre}` : HG.t("¡Bodega llena! Vende en la estación."), metido > 0 ? "" : "rojo");
           if (metido > 0) HG.audio.sfx("moneda"); else HG.audio.sfx("error");
           chispas(mejor.x, mejor.g.position.y + mejor.r, mejor.z, 30, HG.MINERALES[mejor.mineral].color); HG.audio.sfx("explosion");
         }
@@ -184,8 +184,8 @@ HG.Planeta = {
     // interacciones
     let av = null;
     const dN = Math.hypot(control.pos.x - NAVE.x, control.pos.z - NAVE.z), dB = Math.hypot(control.pos.x - BAND.x, control.pos.z - BAND.z);
-    if (dN < HG.largoNave(HG.P.naveActiva) * 0.5 + 4) av = { t: "Despegar", f: () => HG.juego.zona("despegarPlaneta", k) };
-    else if (dB < 5 && st.jefe && !st.conquistado) av = { t: "Plantar bandera", f: () => HG.juego.conquistar(k) };
+    if (dN < HG.largoNave(HG.P.naveActiva) * 0.5 + 4) av = { t: HG.t("Despegar"), f: () => HG.juego.zona("despegarPlaneta", k) };
+    else if (dB < 5 && st.jefe && !st.conquistado) av = { t: HG.t("Plantar bandera"), f: () => HG.juego.conquistar(k) };
     HG.ui.aviso(activo && av ? `<b>E</b> · ${av.t}` : null);
     if (activo && av && HG.input.pulsada("KeyE")) av.f();
   },

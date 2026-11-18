@@ -32,8 +32,8 @@ HG.juego = {
     estado = "intro";
     HG.video.reproducir("video/intro.mp4", () => transicion(() => HG.juego.elegirPersonaje(() => transicion(() => {
       ir("estacion", "puerta");
-      HG.ui.toast("Bienvenido a la estación. Tienes 1.000 monedas: compra tu primera nave en la terminal del hangar (al este). Si te quedas sin dinero, pica carbón en la mina y véndelo.", "oro");
-      setTimeout(() => HG.ui.toast("Haz clic para mover la cámara con el ratón. Esc para pausar."), 1500);
+      HG.ui.toast(HG.t("Bienvenido a la estación. Tienes 1.000 monedas: compra tu primera nave en la terminal del hangar (al este). Si te quedas sin dinero, pica carbón en la mina y véndelo."), "oro");
+      setTimeout(() => HG.ui.toast(HG.t("Haz clic para mover la cámara con el ratón. Esc para pausar.")), 1500);
     }))));
   },
   elegirPersonaje(volver) {
@@ -49,9 +49,9 @@ HG.juego = {
     else if (nombre === "carbon") HG.venderCarbon();
     else if (nombre === "amigos") HG.ui.abrir("tienda", { pestana: "amigos" });
     else if (nombre === "despegar") {
-      if (P.naveActiva < 0) { HG.ui.toast("Necesitas una nave. Cómprala en la terminal del hangar.", "rojo"); HG.audio.sfx("error"); return; }
+      if (P.naveActiva < 0) { HG.ui.toast(HG.t("Necesitas una nave. Cómprala en la terminal del hangar."), "rojo"); HG.audio.sfx("error"); return; }
       transicion(() => ir("espacio", "estacion"), 600);
-    } else if (nombre === "atracar") transicion(() => { ir("estacion", "hangar"); HG.ui.toast("Atracado en la estación. Vende tus minerales en la tienda."); }, 600);
+    } else if (nombre === "atracar") transicion(() => { ir("estacion", "hangar"); HG.ui.toast(HG.t("Atracado en la estación. Vende tus minerales en la tienda.")); }, 600);
     else if (nombre === "aterrizar") {
       const pl = HG.PLANETAS[arg];
       if (!P.videos[pl.id]) {
@@ -70,12 +70,12 @@ HG.juego = {
     const pl = HG.PLANETAS[k], st = HG.P.planetas[pl.id] = HG.P.planetas[pl.id] || {};
     if (st.conquistado) return;
     st.conquistado = true; const premio = 20000 * pl.nivel; HG.P.monedas += premio;
-    HG.ui.toast(`¡${pl.nombre} conquistado! +${HG.fmt(premio)} monedas`, "oro"); HG.audio.sfx("compra");
+    HG.ui.toast(HG.t("¡{0} conquistado! +{1} monedas", pl.nombre, HG.fmt(premio)), "oro"); HG.audio.sfx("compra");
     HG.guardarPartida(); this.comprobarFinal();
   },
   muerte() {
     HG.P.carga = {}; HG.P.vidaNave = null; HG.P.comida = Math.max(HG.P.comida, 25); // vuelves reparado y con algo de comida
-    transicion(() => { ir("estacion", "hangar"); HG.ui.toast("Has reaparecido en la estación. Tu nave está reparada, pero perdiste la carga.", "rojo"); }, 500);
+    transicion(() => { ir("estacion", "hangar"); HG.ui.toast(HG.t("Has reaparecido en la estación. Tu nave está reparada, pero perdiste la carga."), "rojo"); }, 500);
   },
   comprobarFinal() {
     const P = HG.P, conq = Object.values(P.planetas).filter(p => p.conquistado).length;
@@ -120,7 +120,7 @@ function bucle(ahora) {
     const P = HG.P;
     if (activo || estado === "espacio" && !HG.ui.panelAbierto()) {
       P.comida = Math.max(0, P.comida - dt / 12);
-      if (P.comida < 20 && !avisoHambre) { avisoHambre = true; HG.ui.toast("¡Tienes hambre! Compra comida en la tienda de la estación.", "rojo"); }
+      if (P.comida < 20 && !avisoHambre) { avisoHambre = true; HG.ui.toast(HG.t("¡Tienes hambre! Compra comida en la tienda de la estación."), "rojo"); }
       if (P.comida >= 20) avisoHambre = false;
       if (P.comida <= 0 && estado === "espacio") HG.Espacio.hambre(dt);
     }
@@ -135,7 +135,7 @@ function bucle(ahora) {
 }
 
 // ---------- Arranque ----------
-HG.aplicarAjustes();
+HG.aplicarAjustes(); HG.traducirPagina();
 HG.P = HG.cargarPartida() || HG.partidaNueva();
 HG.juego.menu();
 requestAnimationFrame(bucle);

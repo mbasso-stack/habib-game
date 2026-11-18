@@ -6,25 +6,25 @@
 const HG = window.HG, T = THREE;
 
 HG.PERSONAJES = [
-  { id: "haluski", malla: "haluski", corto: "Haluski", nombre: "Haluski", rol: "Protagonista", bio: "Piloto protagonista. Valiente, impulsivo y con un don para las naves.",
+  { id: "haluski", malla: "haluski", corto: HG.t("Haluski"), nombre: HG.t("Haluski"), rol: HG.t("Protagonista"), bio: HG.t("Piloto protagonista. Valiente, impulsivo y con un don para las naves."),
     piel: "#efc4a0", pelo: "#d9b062", peinado: "puntas", ojos: "#3f86d0", labios: "#c27a6e", traje: "#2c5aa8", panel: "#244a8a", cuello: "#a7afb8", detalle: "#3a414c",
     guantes: "#8c939c", botas: "#3a3d42", mochila: "#2c5aa8", mangueras: true, parches: "haluski", altura: 1.8, k: 1.0, semilla: 11 },
-  { id: "nadia", malla: "nadia", corto: "Nadia", nombre: "Nadia Reyes", rol: "Exploradora · Amigos", bio: "Exploradora. Conoce cada roca de los planetas y a cada piloto de la estación.",
+  { id: "nadia", malla: "nadia", corto: HG.t("Nadia"), nombre: HG.t("Nadia Reyes"), rol: HG.t("Exploradora · Amigos"), bio: HG.t("Exploradora. Conoce cada roca de los planetas y a cada piloto de la estación."),
     piel: "#d29a74", pelo: "#141418", peinado: "rizos", ojos: "#5a3a22", labios: "#b0625a", traje: "#3d7a3a", panel: "#1f3c6e", cuello: "#1f3c6e", detalle: "#1f3c6e",
     guantes: "#3d7a3a", botas: "#2c5a2a", mochila: "#8f959c", rayas: true, parches: "nadia", mujer: true, altura: 1.7, k: 0.92, semilla: 22 },
-  { id: "kenji", malla: "kenji", corto: "Kenji", nombre: "Capitán Kenji Morita", rol: "Comandante · Clanes", bio: "Comandante veterano. Dirige la estación y los clanes con mano firme.",
+  { id: "kenji", malla: "kenji", corto: HG.t("Kenji"), nombre: HG.t("Capitán Kenji Morita"), rol: HG.t("Comandante · Clanes"), bio: HG.t("Comandante veterano. Dirige la estación y los clanes con mano firme."),
     piel: "#deb08a", pelo: "#b4b4b4", peinado: "atras", barba: "corta", ojos: "#3b2a1e", labios: "#b07468", traje: "#e2721f", panel: "#cf6316", cuello: "#4a4f57", detalle: "#5b6068",
     guantes: "#5b6068", botas: "#d0681c", mochila: "#e2721f", arnes: "#6b7079", consola: true, parches: "kenji", altura: 1.76, k: 1.05, semilla: 33 },
-  { id: "bruno", malla: "bruno", corto: "Bruno", nombre: "Bruno «Llave» Kowalski", rol: "Mecánico del hangar", bio: "Mecánico del hangar. Si tiene tornillos, Bruno lo arregla.",
+  { id: "bruno", malla: "bruno", corto: HG.t("Bruno"), nombre: HG.t("Bruno «Llave» Kowalski"), rol: HG.t("Mecánico del hangar"), bio: HG.t("Mecánico del hangar. Si tiene tornillos, Bruno lo arregla."),
     piel: "#d6a482", pelo: "#4a3222", peinado: "cresta", barba: "larga", ojos: "#4a3020", labios: "#a8665c", traje: "#c0661f", panel: "#2a2c31", cuello: "#2a2c31", detalle: "#2a2c31",
     guantes: "#c0661f", botas: "#2a2c31", mochila: "#34373d", arnes: "#22242a", herramientas: true, sucio: true, parches: "bruno", altura: 1.9, k: 1.18, semilla: 44 },
-  { id: "rayo", malla: "rayo", corto: "Rayo", nombre: "Rayo", rol: "Astronauta de élite", bio: "Astronauta de élite. Su traje amarillo se ve desde cualquier rincón de la galaxia.",
+  { id: "rayo", malla: "rayo", corto: HG.t("Rayo"), nombre: HG.t("Rayo"), rol: HG.t("Astronauta de élite"), bio: HG.t("Astronauta de élite. Su traje amarillo se ve desde cualquier rincón de la galaxia."),
     piel: "#f0c4a2", pelo: "#5a3a22", peinado: "rizos", ojos: "#4a7a3a", labios: "#c27a6e", traje: "#f2c230", panel: "#1d1f24", cuello: "#1d1f24", detalle: "#1d1f24",
     guantes: "#1d1f24", botas: "#1d1f24", mochila: "#f2c230", altura: 1.82, k: 1.0, semilla: 77 },
-  { id: "astro", malla: "astro", corto: "Astronauta", nombre: "Astronauta", rol: "Ingeniero de vuelo", bio: "Ingeniero de vuelo. Siempre lleva el casco bajo el brazo, por si acaso.",
+  { id: "astro", malla: "astro", corto: HG.t("Astronauta"), nombre: HG.t("Astronauta"), rol: HG.t("Ingeniero de vuelo"), bio: HG.t("Ingeniero de vuelo. Siempre lleva el casco bajo el brazo, por si acaso."),
     piel: "#e0b08c", pelo: "#5a4630", peinado: "atras", ojos: "#4a6a8a", labios: "#b06c60", traje: "#d9dde3", panel: "#8a919b", cuello: "#8a919b", detalle: "#5b6068",
     guantes: "#6b7079", botas: "#4a4f57", mochila: "#b8bec7", parches: "kenji", altura: 1.82, k: 1.02, semilla: 55 },
-  { id: "piloto", malla: "piloto", corto: "Piloto", nombre: "Piloto", rol: "Piloto de pruebas", bio: "Piloto de pruebas. Vuela primero y pregunta después.",
+  { id: "piloto", malla: "piloto", corto: HG.t("Piloto"), nombre: HG.t("Piloto"), rol: HG.t("Piloto de pruebas"), bio: HG.t("Piloto de pruebas. Vuela primero y pregunta después."),
     piel: "#e3b894", pelo: "#2a2018", peinado: "puntas", ojos: "#3a6a4a", labios: "#b8695f", traje: "#2f3b52", panel: "#c9d2de", cuello: "#c9d2de", detalle: "#3a414c",
     guantes: "#2a2f3a", botas: "#1d2027", mochila: "#2f3b52", altura: 1.85, k: 1.0, semilla: 66 },
 ];
@@ -697,7 +697,7 @@ HG.crearPersonaje = (d) => {
 };
 
 // Robot de la tienda (modelo 3D propio: modelos/personajes/robot.bin)
-HG.ROBOT = { id: "robot", malla: "robot", corto: "Robot", nombre: "Robot de la tienda", altura: 2.0, k: 1.0, semilla: 5, peinado: "", ojos: "#3f86d0", labios: "#aa8880", traje: "#cdd2d9", panel: "#4a5662", piel: "#e6eaee", pelo: "#2a3440", guantes: "#2a3440", botas: "#2a3440", cuello: "#4a5662", mochila: "#4a5662", rugosidad: 0.35, metal: 0.55 };
+HG.ROBOT = { id: "robot", malla: "robot", corto: HG.t("Robot"), nombre: HG.t("Robot de la tienda"), altura: 2.0, k: 1.0, semilla: 5, peinado: "", ojos: "#3f86d0", labios: "#aa8880", traje: "#cdd2d9", panel: "#4a5662", piel: "#e6eaee", pelo: "#2a3440", guantes: "#2a3440", botas: "#2a3440", cuello: "#4a5662", mochila: "#4a5662", rugosidad: 0.35, metal: 0.55 };
 
 // NPC genérico de la estación con colores aleatorios
 const TRAJES = ["#2f5ea6", "#3f7b3c", "#e2721f", "#8a3cff", "#c43c3c", "#3a3f48", "#1f8a7a", "#d9b23a"];
