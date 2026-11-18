@@ -1,7 +1,7 @@
 name: Publicar en GitHub Pages
 on:
   push:
-    branches: [main, claude/space-shooter-game-e0fovz]
+    branches: [main, claude/space-shooter-game-e0fovz, claude/jolly-heisenberg-g1wxx2]
   workflow_dispatch:
 permissions:
   contents: read
