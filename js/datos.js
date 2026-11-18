@@ -57,7 +57,7 @@ HG.PLANETAS = [
   { id: "abismo", nombre: HG.t("Abismo"), tipo: "lava",  nivel: 5, radio: 640, pos: [-12000, -500, -19500], base: "#120a1c", tierra: "#b02cff", nubes: 0,    atm: "#a040ff", cielo: "#2a1240", suelo: "#24162e", minerales: ["obsidiana", "vacio"],     jefe: { nombre: HG.t("El Devorador"), vida: 6000, premio: 450000 } },
 ];
 
-HG.CARBON = { precio: 80, max: 60 }; // mina de la estación: siempre se puede ganar dinero
+HG.CARBON = { precio: 30, max: 40 }; // mina de la estación: siempre se puede ganar dinero, pero volar y conquistar paga mucho más
 
 HG.COMIDAS = [
   { id: "racion",   nombre: HG.t("Ración espacial"),   precio: 50,   valor: 15,  desc: HG.t("Sabe a cartón, pero llena.") },
