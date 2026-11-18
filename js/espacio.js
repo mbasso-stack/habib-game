@@ -121,6 +121,7 @@ function crearEnemigo(tipo, nivel, pos, planeta = -1, jefe = null) {
 function danarEnemigo(e, d, dueno = true) {
   if (e.hp <= 0) return;
   e.hp -= d; chispas(e.pos, 6, "#ffffff", 60, 0.5);
+  if (dueno) HG.ui.impacto(e.hp <= 0);
   if (e.hp <= 0) {
     explotar(e.pos, e.jefe ? 4 : 1.2);
     const pr = e.jefe ? HG.PLANETAS[e.planeta].jefe.premio : Math.round(120 + 90 * e.nivel + HG.rnd(0, 80));

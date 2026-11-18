@@ -18,6 +18,8 @@ HG.ui = {
     setTimeout(() => d.classList.add("fuera"), 3800); setTimeout(() => d.remove(), 4400);
     while (toasts.children.length > 5) toasts.firstChild.remove();
   },
+  // marcador de impacto en la mira: blanco al acertar, rojo y más grande al derribar
+  impacto(baja) { const m = $("mira"); m.classList.remove("tocado", "baja"); void m.offsetWidth; m.classList.add(baja ? "baja" : "tocado"); clearTimeout(m._t); m._t = setTimeout(() => m.classList.remove("tocado", "baja"), baja ? 260 : 110); },
   golpe() { const g = $("golpe"); g.style.opacity = 0.45; clearTimeout(g._t); g._t = setTimeout(() => g.style.opacity = 0, 120); },
   modoHud(m) { hud.className = m || "oculto"; if (m !== "vuelo") marcEl.innerHTML = ""; },
   // datos comunes (monedas, comida, carga, objetivo)

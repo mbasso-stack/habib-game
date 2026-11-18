@@ -124,9 +124,34 @@ kbd { background: #13254a; border: 1px solid var(--borde); padding: 1px 6px; fon
 /* con controles táctiles, la velocidad sube por encima del joystick */
 body.tactil #hVelCaja { left: auto; right: 50%; margin-right: -100px; bottom: 54px; width: 200px; }
 body.tactil #aviso { bottom: 110px; }
+/* Pantalla de carga */
+#carga { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  background: radial-gradient(ellipse at 50% 40%, #0d2340 0%, #050a16 60%, #02040a 100%); transition: opacity .8s; }
+#carga.fuera { opacity: 0; pointer-events: none; }
+#carga h1 { margin: 0; font: 900 clamp(44px, 9vw, 96px) Orbitron, Arial, sans-serif; color: #fff; letter-spacing: .06em; text-shadow: 0 0 30px rgba(79,208,255,.8); animation: latido 2.4s ease-in-out infinite; }
+#carga h3 { margin: -10px 0 10px; font: 600 14px Orbitron, Arial, sans-serif; color: #ffd166; letter-spacing: .5em; }
+#carga .pista { width: min(360px, 70vw); height: 4px; background: rgba(255,255,255,.08); overflow: hidden; }
+#carga .pista i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #4fd0ff, #b9f0ff); box-shadow: 0 0 12px #4fd0ff; transition: width .3s; }
+#carga p { margin: 0; font: 13px Rajdhani, Arial, sans-serif; color: #8fb8d8; letter-spacing: .2em; text-transform: uppercase; }
+@keyframes latido { 50% { text-shadow: 0 0 46px rgba(79,208,255,1), 0 0 90px rgba(79,208,255,.35); } }
+/* Menú principal: los botones entran escalonados */
+#panel.principal .menuCentro > * { animation: entrar .7s cubic-bezier(.2,.8,.2,1) both; }
+#panel.principal .menuCentro > *:nth-child(2) { animation-delay: .08s; } #panel.principal .menuCentro > *:nth-child(3) { animation-delay: .16s; }
+#panel.principal .menuCentro > *:nth-child(4) { animation-delay: .24s; } #panel.principal .menuCentro > *:nth-child(5) { animation-delay: .32s; }
+#panel.principal .menuCentro > *:nth-child(6) { animation-delay: .40s; } #panel.principal .menuCentro > *:nth-child(7) { animation-delay: .48s; }
+#panel.principal .menuCentro > *:nth-child(n+8) { animation-delay: .56s; }
+@keyframes entrar { from { opacity: 0; transform: translateX(-30px); } }
+.principal h1 { animation: latido 3s ease-in-out infinite, entrar .8s both !important; }
+/* Marcador de impacto en la mira */
+#mira::before { content: ""; position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; margin: -15px; opacity: 0; transition: opacity .12s;
+  background: linear-gradient(45deg, transparent 46%, #fff 46%, #fff 54%, transparent 54%), linear-gradient(-45deg, transparent 46%, #fff 46%, #fff 54%, transparent 54%);
+  -webkit-mask: radial-gradient(circle, transparent 7px, #000 8px); mask: radial-gradient(circle, transparent 7px, #000 8px); }
+#mira.tocado::before { opacity: 1; transition: none; }
+#mira.baja::before { opacity: 1; transition: none; transform: scale(1.5); background: linear-gradient(45deg, transparent 44%, #ff6a4a 44%, #ff6a4a 56%, transparent 56%), linear-gradient(-45deg, transparent 44%, #ff6a4a 44%, #ff6a4a 56%, transparent 56%); }
 </style>
 </head>
 <body>
+<div id="carga"><h1>HALUSKI</h1><h3 data-tr>MISIÓN COLONIAL</h3><div class="pista"><i></i></div><p data-tr>Cargando</p></div>
 <canvas id="lienzo"></canvas>
 <div id="hud" class="oculto">
   <div id="objetivo"><span data-tr>Objetivo:</span> <span id="hObjetivo"></span></div>

@@ -139,4 +139,15 @@ HG.aplicarAjustes(); HG.traducirPagina();
 HG.P = HG.cargarPartida() || HG.partidaNueva();
 HG.juego.menu();
 requestAnimationFrame(bucle);
+
+// Pantalla de carga: se va cuando están los personajes (o a los 12 s como mucho)
+(function () {
+  const capa = document.getElementById("carga"), barra = capa.querySelector("i"), ids = Object.keys(HG.MALLAS), ini = performance.now();
+  const mirar = () => {
+    const n = ids.filter(HG.Mallas.listo).length; barra.style.width = Math.round(15 + 85 * n / ids.length) + "%";
+    if (n === ids.length || performance.now() - ini > 12000) { barra.style.width = "100%"; setTimeout(() => { capa.classList.add("fuera"); setTimeout(() => capa.remove(), 900); }, 250); }
+    else setTimeout(mirar, 120);
+  };
+  mirar();
+})();
 })();
