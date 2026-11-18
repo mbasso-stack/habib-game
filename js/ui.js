@@ -41,9 +41,9 @@ HG.ui = {
     while (marcEl.children.length < d.marcadores.length) { const m = document.createElement("div"); m.className = "marca"; marcEl.appendChild(m); }
     [...marcEl.children].forEach((el, i) => {
       const m = d.marcadores[i]; if (!m) { el.style.display = "none"; return; }
-      el.style.display = "block"; el.className = "marca " + m.tipo + (m.fuera ? " fuera" : "");
+      el.style.display = "block"; el.className = "marca " + m.tipo + (m.fuera ? " fuera" : "") + (m.mini ? " mini" : "");
       el.style.left = (m.x * 100) + "%"; el.style.top = (m.y * 100) + "%";
-      const txt = m.tipo === "enemigo" ? "" : `${m.texto}<small>${m.dist > 1000 ? (m.dist / 1000).toFixed(1) + " km" : Math.max(0, Math.round(m.dist)) + " m"}</small>`;
+      const txt = m.tipo === "enemigo" || m.mini ? "" : `${m.texto}<small>${m.dist > 1000 ? (m.dist / 1000).toFixed(1) + " km" : Math.max(0, Math.round(m.dist)) + " m"}</small>`;
       if (el._t !== txt) { el._t = txt; el.innerHTML = txt; }
     });
   },

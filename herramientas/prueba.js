@@ -33,7 +33,7 @@ const salida = path.resolve(process.argv[2] || "capturas"), W = +(process.argv[3
     // partida de prueba: con nave, dinero y carga
     await js(() => {
       const P = HG.partidaNueva(); Object.assign(P, { monedas: 250000, naves: { 0: { mov: 1, com: 1, asp: 0 }, 1: { mov: 0, com: 0, asp: 0 } }, naveActiva: 1, videos: { aurora: true }, carga: { cuarzo: 6 } });
-      localStorage.setItem("haluski_partida", JSON.stringify(P)); HG.ui.cerrar(); HG.juego.continuar();
+      localStorage.setItem("haluski_partida", JSON.stringify(P)); HG.juego.continuar(); HG.ui.cerrar();
     });
     await foto("04_estacion", 2500);
     for (const p of ["tienda", "hangar", "clanes", "ajustes", "controles"]) { await js(p => HG.ui.abrir(p), p); await foto("05_panel_" + p, 700); await js(() => HG.ui.cerrar()); }
