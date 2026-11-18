@@ -27,6 +27,8 @@ rejilla muestre estas mismas coordenadas.
 | `zonas` | Lista de zonas a mano, por orden (la última gana): `{"zona": "acento", "caja": [x0,x1,y0,y1,z0,z1], "simetrica": true}` o `{"zona": "...", "elipse": {"c": [x,y,z], "r": [rx,ry,rz]}}`. Filtros opcionales: `"partes": ["tronco","brazo","pierna"]`, `"normalY"` (mínimo), `"relieveMin"`, `"si": ["traje"]` (solo cambia esas zonas) |
 | `paleta` | Color de cada zona (`traje`, `panel`, `detalle`, `guantes`, `botas`, `suela`, `cuello`, `mochila`, `piel`, `pelo`, `metal`, `acento`, `visor`, `luz`, `labios`, `ceja`) y de los ojos (`ojos`). `metal` y `visor` brillan como metal; `luz` emite luz |
 | `cara` | Rasgos pintados: `ojo: [x, y]` (centro de cada ojo), `ojoW`, `ojoH` (ancho y alto de la abertura), `ojoInclina`, `iris` (fracción de `ojoW`), `ceja` (y), `cejaGrosor`, `nariz` (se detecta sola: `[0, y, z]` de la punta), `narizAncho`, `fosas: [x, y]`, `boca: [0, y]`, `bocaW`, `labioSup`, `labioInf`, `sonrisa`, `ventana: [x0, x1, y0, y1]` (zona de la cara donde se pinta) |
+| `subdividir` | Para modelos con pocos triángulos: tapa los agujeros que deja `quitar`, parte cada triángulo en 4 tantas veces como diga (2 en Nadia) y suaviza (`suavizarMalla`, pasos de Taubin). Opcionales: `desplegar` (deshace pliegues), `quitarPicos` |
+| `suavizarPesos` | Pasos de reparto de los pesos de piel con los vecinos (12 en Nadia): hombros sin dientes de sierra |
 | `quitar` | Cajas `[x0,x1,y0,y1,z0,z1]`: se quitan los triángulos que tocan (restos sueltos) |
 | otros | `piezaMinima`, `anguloCabeza` (70), `anguloCuerpo` (40), `suavizado` (25), `resAO` (200), `fuerzaAO` (1), `tieneCara` (false para el robot) |
 
