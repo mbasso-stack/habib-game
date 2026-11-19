@@ -91,7 +91,7 @@ function geometria(d, modo) {
   return geos[clave] = g;
 }
 const mats = {};
-const cargaTex = (archivo, srgb) => { const t = new T.TextureLoader().load(`${HG.BASE || ""}modelos/personajes/${archivo}?v=11`); if (srgb) t.encoding = T.sRGBEncoding; t.anisotropy = 8; return t; };
+const cargaTex = (archivo, srgb) => { const t = new T.TextureLoader().load(`${HG.BASE || ""}modelos/personajes/${archivo}?v=12`); if (srgb) t.encoding = T.sRGBEncoding; t.anisotropy = 8; return t; };
 // Modelo con texturas propias (color, relieve, rugosidad y metal)
 function materialTexturas(M) {
   const tx = M.meta.textura, m = new T.MeshStandardMaterial({ vertexColors: true, skinning: true, side: T.DoubleSide, roughness: 1, metalness: 1 });
@@ -230,10 +230,19 @@ HG.Mallas = {
   listo: id => !!cache[id],
   cargar(id) {
     if (cache[id]) return Promise.resolve(cache[id]);
-    return esperas[id] || (esperas[id] = Promise.all([
-      fetch(`${HG.BASE || ""}modelos/personajes/${id}.json?v=11`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
-      fetch(`${HG.BASE || ""}modelos/personajes/${id}.bin?v=11`).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }),
-    ]).then(([meta, buf]) => cache[id] = leer(buf, meta)));
+    // El .json y el .bin tienen que ser de la misma horneada: justo después de publicar, la caché de la web puede
+    // servir uno nuevo y otro viejo, y el personaje saldría destrozado. Si no cuadran, se vuelven a pedir sin caché.
+    const pedir = (sinCache) => {
+      const q = sinCache ? `?v=12&r=${Date.now()}` : "?v=12", o = sinCache ? { cache: "reload" } : {};
+      return Promise.all([
+        fetch(`${HG.BASE || ""}modelos/personajes/${id}.json${q}`, o).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
+        fetch(`${HG.BASE || ""}modelos/personajes/${id}.bin${q}`, o).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }),
+      ]);
+    };
+    const cuadra = ([meta, buf]) => !meta.bytes || meta.bytes === buf.byteLength;
+    return esperas[id] || (esperas[id] = pedir(false)
+      .then(d => cuadra(d) ? d : pedir(true))
+      .then(d => { if (!cuadra(d)) throw new Error("modelo " + id + " a medias"); return cache[id] = leer(d[1], d[0]); }));
   },
   // Esqueleto y malla de un personaje; devuelve lo mismo que HG.crearPersonaje. opc.modo: "zona", "parte", "hueso" o "sombra" para revisar
   crear(d, opc = {}) {

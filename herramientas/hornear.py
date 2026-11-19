@@ -894,6 +894,7 @@ def hornear(id_, depurar=None):
         meta["cara"] = {"c": g["c"], "ventana": g["ventana"], "GX": g["GX"], "GY": g["GY"]}
         out += g["z"].astype(np.float32).tobytes()
         out += np.round(g["n"] * 127).astype(np.int8).tobytes()
+    meta["bytes"] = len(out)   # el juego comprueba que el .bin y el .json son de la misma horneada (cachés de la web)
     destino = os.path.join(RAIZ, "modelos", "personajes")
     open(os.path.join(destino, id_ + ".bin"), "wb").write(out)
     json.dump(meta, open(os.path.join(destino, id_ + ".json"), "w"), ensure_ascii=False, separators=(",", ":"))

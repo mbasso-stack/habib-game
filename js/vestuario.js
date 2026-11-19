@@ -37,7 +37,7 @@ HG.Vestuario = {
     const m = modelos[sel]; m.grupo.rotation.y = Math.sin(giro) * 0.6;
     m.animar(saludo > 0.3 && saludo < 2.2 ? "saludar" : "quieto", t, dt); // saluda al aparecer y vuelve a la postura de reposo
     const asp = innerWidth / innerHeight; camara.aspect = asp; camara.fov = asp < 1.2 ? 44 : 32; camara.updateProjectionMatrix();
-    if (asp < 1.2) { camara.position.set(0, 1.3, 5.6); camara.lookAt(0, 0.55, 0); } // pantalla estrecha: personaje arriba, panel abajo
+    if (asp < 1.2) { camara.position.set(0, 0.6, 6.4); camara.lookAt(0, -0.35, 0); } // pantalla estrecha: personaje entero arriba, panel abajo
     else { camara.position.set(1.35, 1.15, 5.2); camara.lookAt(1.35, 1.05, 0); } // pantalla ancha: personaje a la izquierda, panel a la derecha
   },
 };
