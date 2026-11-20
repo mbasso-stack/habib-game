@@ -11,7 +11,7 @@ HG.clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 HG.lerp = (a, b, k) => a + (b - a) * k;
 HG.semilla = n => () => { n = n + 0x6D2B79F5 | 0; let t = Math.imul(n ^ n >>> 15, 1 | n); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 HG.lin = h => new T.Color(h).convertSRGBToLinear();
-HG.fmt = n => Math.floor(n).toLocaleString("es-ES");
+HG.fmt = n => Math.floor(n).toLocaleString(HG.idioma === "en" ? "en-GB" : "es-ES");
 HG.angDif = (a, b) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
 
 // ---------- Render ----------
@@ -278,6 +278,10 @@ HG.input = {
   soltarRaton() { if (document.pointerLockElement) document.exitPointerLock(); },
   finFrame() { for (const k in pulsadas) delete pulsadas[k]; clicIP = clicIS = false; },
   limpiar() { for (const k in teclas) teclas[k] = false; clicI = clicD = false; rdx = rdy = 0; },
+  // controles táctiles (js/tactil.js): teclas virtuales, giro de cámara en píxeles y rueda
+  virtual(c, on) { if (on && !teclas[c]) pulsadas[c] = true; teclas[c] = on; if (on) HG.audio.iniciar(); },
+  mirar(dx, dy) { rdx += dx; rdy += dy; },
+  girarRueda(n) { rueda += n; },
 };
 
 // ---------- Ajustes y guardado ----------
@@ -310,7 +314,47 @@ HG.cargarPartida = () => { try { const d = JSON.parse(localStorage.getItem("halu
 HG.guardarPartida = () => { try { localStorage.setItem("haluski_partida", JSON.stringify(HG.P)); } catch (e) {} };
 
 // ---------- Sonido ----------
-let actx = null;
+let actx = null, salida = null, ruidoBuf = null;
+// tono con barrido de frecuencia (f1 → f2) y caída de volumen
+function tono(t, f1, f2, dur, onda, vol, o = {}) {
+  const osc = actx.createOscillator(), g = actx.createGain(); let nodo = osc;
+  osc.type = onda; osc.frequency.setValueAtTime(f1, t); osc.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + dur);
+  if (o.det) osc.detune.value = o.det;
+  if (o.fc) { const f = actx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = o.fc; osc.connect(f); nodo = f; }
+  const at = o.ataque || 0.005;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + at); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  nodo.connect(g); g.connect(salida); osc.start(t); osc.stop(t + dur + 0.05);
+}
+// ruido filtrado (explosiones, golpes, pico, motores)
+function ruido(t, dur, vol, fc1, fc2, o = {}) {
+  if (!ruidoBuf) { ruidoBuf = actx.createBuffer(1, actx.sampleRate, actx.sampleRate); const d = ruidoBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  const src = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
+  src.buffer = ruidoBuf; src.loop = true; f.type = o.tipo || "lowpass"; f.Q.value = o.q || 0.8;
+  f.frequency.setValueAtTime(fc1, t); f.frequency.exponentialRampToValueAtTime(Math.max(30, fc2), t + dur);
+  const at = o.ataque || 0.004;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + at); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(salida); src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.05);
+}
+const SONIDOS = {
+  laser: (t, v) => { tono(t, 1500, 380, 0.11, "sawtooth", 0.05 * v, { fc: 3200 }); tono(t, 1520, 400, 0.09, "square", 0.025 * v, { det: 12 }); },
+  gatling: (t, v) => { tono(t, 900, 260, 0.05, "square", 0.03 * v, { fc: 2500 }); ruido(t, 0.04, 0.05 * v, 4000, 1500, { tipo: "bandpass", q: 1.5 }); },
+  misil: (t, v) => { ruido(t, 0.55, 0.09 * v, 600, 2400, { tipo: "bandpass", q: 2, ataque: 0.06 }); tono(t, 180, 520, 0.4, "sawtooth", 0.03 * v, { fc: 900 }); },
+  mina: (t, v) => { tono(t, 220, 140, 0.12, "triangle", 0.07 * v); tono(t + 0.08, 330, 330, 0.08, "sine", 0.04 * v); },
+  plasma: (t, v) => { tono(t, 120, 50, 0.6, "sawtooth", 0.08 * v, { fc: 700 }); ruido(t, 0.5, 0.1 * v, 2500, 200); tono(t, 900, 200, 0.25, "sine", 0.04 * v); },
+  rail: (t, v) => { tono(t, 3200, 180, 0.35, "sawtooth", 0.05 * v, { fc: 6000 }); ruido(t, 0.3, 0.07 * v, 8000, 800, { tipo: "highpass" }); },
+  pulso: (t, v) => { tono(t, 140, 28, 1.0, "sine", 0.22 * v, { ataque: 0.01 }); ruido(t, 0.9, 0.12 * v, 1600, 60); },
+  explosion: (t, v) => { ruido(t, 0.9, 0.3 * v, 2200, 70, { ataque: 0.003 }); tono(t, 110, 32, 0.7, "sine", 0.25 * v); ruido(t + 0.05, 0.4, 0.08 * v, 5000, 900, { tipo: "highpass" }); },
+  golpe: (t, v) => { ruido(t, 0.25, 0.22 * v, 1800, 150); tono(t, 160, 60, 0.2, "square", 0.06 * v, { fc: 600 }); },
+  moneda: (t, v) => { tono(t, 1318, 1318, 0.09, "triangle", 0.07 * v); tono(t + 0.07, 1976, 1976, 0.22, "triangle", 0.07 * v); },
+  compra: (t, v) => { [523, 659, 784, 1047].forEach((f, i) => tono(t + i * 0.06, f, f, 0.32 - i * 0.03, "triangle", 0.06 * v)); },
+  error: (t, v) => { tono(t, 196, 185, 0.14, "square", 0.05 * v, { fc: 1200 }); tono(t + 0.15, 165, 155, 0.2, "square", 0.05 * v, { fc: 1200 }); },
+  pico: (t, v) => { ruido(t, 0.12, 0.2 * v, 3500, 900, { tipo: "bandpass", q: 3 }); tono(t, 2400, 1700, 0.09, "sine", 0.05 * v); tono(t, 140, 70, 0.08, "sine", 0.1 * v); },
+  salto: (t, v) => { ruido(t, 0.18, 0.05 * v, 900, 300); tono(t, 260, 420, 0.12, "sine", 0.04 * v); },
+  carga: (t, v) => { tono(t, 300, 1500, 0.5, "sawtooth", 0.035 * v, { fc: 2000, ataque: 0.05 }); },
+  alarma: (t, v) => { for (let i = 0; i < 2; i++) { tono(t + i * 0.28, 880, 660, 0.22, "square", 0.045 * v, { fc: 2600 }); } },
+  clic: (t, v) => { tono(t, 1800, 1200, 0.035, "sine", 0.05 * v); ruido(t, 0.02, 0.03 * v, 6000, 3000, { tipo: "highpass" }); },
+  paso: (t, v) => { ruido(t, 0.07, 0.05 * v, 700, 200); },
+};
 const pistas = {};
 let pistaActual = null;
 HG.audio = {
@@ -334,21 +378,12 @@ HG.audio = {
     }
   },
   volumen() {},
+  // Efectos sintetizados: capas de osciladores y ruido filtrado, con un compresor a la salida
   sfx(tipo) {
     if (!actx || HG.ajustes.efectos <= 0) return;
-    const S = {
-      laser: [1200, 400, 0.08, "square", 0.04], gatling: [700, 300, 0.05, "sawtooth", 0.03], misil: [300, 900, 0.25, "sawtooth", 0.05],
-      mina: [200, 120, 0.15, "square", 0.05], plasma: [180, 60, 0.5, "sawtooth", 0.09], rail: [2000, 200, 0.3, "square", 0.06],
-      pulso: [120, 30, 0.8, "sawtooth", 0.1], explosion: [220, 40, 0.45, "sawtooth", 0.09], golpe: [300, 60, 0.3, "sawtooth", 0.08],
-      moneda: [1200, 1900, 0.08, "triangle", 0.06], compra: [600, 1200, 0.18, "triangle", 0.08], error: [200, 120, 0.25, "square", 0.06],
-      pico: [260, 110, 0.09, "square", 0.06], salto: [300, 600, 0.12, "triangle", 0.05], carga: [400, 1400, 0.3, "triangle", 0.06],
-      alarma: [880, 440, 0.25, "square", 0.05], clic: [900, 900, 0.04, "triangle", 0.04], paso: [90, 60, 0.05, "triangle", 0.03],
-    }[tipo];
-    if (!S) return;
-    const [f1, f2, dur, onda, vol] = S, o = actx.createOscillator(), g = actx.createGain();
-    o.type = onda; o.frequency.setValueAtTime(f1, actx.currentTime); o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), actx.currentTime + dur);
-    g.gain.setValueAtTime(vol * HG.ajustes.efectos * 1.4, actx.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dur);
-    o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + dur);
+    const S = SONIDOS[tipo]; if (!S) return;
+    if (!salida) { salida = actx.createDynamicsCompressor(); salida.threshold.value = -14; salida.ratio.value = 6; salida.connect(actx.destination); }
+    S(actx.currentTime, HG.ajustes.efectos * 1.4 * HG.rnd(0.9, 1.05));
   },
 };
 

@@ -47,7 +47,7 @@ h1, h2, h3, h4, .boton, kbd, .marca, #aviso b { font-family: Orbitron, Arial, sa
 .marca small { display: block; color: #cfe; font-family: Rajdhani, sans-serif; font-size: 13px; }
 .marca.estacion { color: var(--verde); } .marca.conquistado { color: var(--oro); } .marca.jefe { color: var(--rojo); }
 .marca.enemigo { color: var(--rojo); } .marca.enemigo::before { width: 22px; height: 22px; transform: none; border-radius: 3px; border-width: 2px; }
-.marca.fuera { opacity: .75; } .marca.enemigo.fuera::before { width: 10px; height: 10px; transform: rotate(45deg); }
+.marca.fuera { opacity: .75; } .marca.mini { opacity: .45; } .marca.mini::before { width: 8px; height: 8px; } .marca.enemigo.fuera::before { width: 10px; height: 10px; transform: rotate(45deg); }
 #aviso { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); z-index: 6; display: none; background: var(--fondo); border: 1px solid var(--oro); padding: 10px 20px; font-size: 19px; pointer-events: none; }
 #aviso b { color: #111; background: var(--oro); padding: 1px 8px; margin-right: 6px; }
 #toasts { position: fixed; right: 16px; top: 150px; width: 360px; z-index: 7; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
@@ -100,7 +100,9 @@ kbd { background: #13254a; border: 1px solid var(--borde); padding: 1px 6px; fon
 .creditos { text-align: center; max-width: 640px; } .creditos h1 { color: var(--oro); font-size: 46px; } .creditos h3 { color: var(--cian); margin-top: 30px; } .creditos p b { color: var(--oro); }
 .rodillo { animation: subir 30s linear; } @keyframes subir { from { transform: translateY(60vh); } to { transform: translateY(0); } }
 #panel.vestuario { background: none; backdrop-filter: none; align-items: center; justify-content: flex-end; padding: 0 4vw 0 0; pointer-events: none; }
-@media (max-aspect-ratio: 6/5) { #panel.vestuario { align-items: flex-end; justify-content: center; padding: 0 0 3vh 0; } }
+@media (max-aspect-ratio: 6/5) { #panel.vestuario { align-items: flex-end; justify-content: center; padding: 0 0 2vh 0; }
+  .vest h2 { font-size: 15px; letter-spacing: .2em; margin-bottom: 6px; } .vestNav { gap: 8px; } .vestNav > div { width: 66vw; padding: 6px 10px; }
+  .vestNav h3 { font-size: 19px; } .vestNav p { font-size: 13px; margin: 2px 0; } .vest .flecha { width: 40px; height: 40px; } .puntos span { margin: 6px 4px; } .vest .nota { display: none; } }
 #panel.vestuario .caja { width: auto; background: none; border: none; box-shadow: none; clip-path: none; pointer-events: auto; overflow: visible; }
 .vest { text-align: center; } .vest h2 { color: var(--cian); letter-spacing: .3em; margin: 0 0 10px; text-shadow: 0 0 12px #000; }
 .vestNav { display: flex; align-items: center; justify-content: center; gap: 22px; } .vestNav > div { width: min(420px, 60vw); background: var(--fondo); border: 1px solid var(--borde); padding: 10px 18px; }
@@ -108,23 +110,64 @@ kbd { background: #13254a; border: 1px solid var(--borde); padding: 1px 6px; fon
 .flecha { font-size: 26px; width: 58px; height: 58px; background: var(--fondo); border: 1px solid var(--cian); color: #fff; cursor: pointer; }
 .puntos span { display: inline-block; width: 10px; height: 10px; margin: 10px 5px; border: 1px solid var(--cian); transform: rotate(45deg); } .puntos span.on { background: var(--cian); }
 @media (max-width: 800px) { .dos { grid-template-columns: 1fr; } .ajustes { grid-template-columns: 1fr; } #hIzq { width: 200px; } }
+/* Pantallas pequeñas (móviles, tabletas en horizontal) */
+@media (max-width: 1000px), (max-height: 560px) {
+  #hIzq { width: 190px; left: 10px; top: 10px; padding: 6px 10px; } #hDer { right: 10px; top: 10px; min-width: 0; padding: 6px 10px; }
+  #hDer div { font-size: 13px; } #hDer b { font-size: 15px; } .etq { font-size: 10px; }
+  #objetivo { top: auto; bottom: 8px; font-size: 11px; padding: 4px 10px; max-width: 46vw; white-space: normal; text-align: center; }
+  #hud.vuelo #objetivo { display: none; }
+  #barraJefe { top: 10px; width: 300px; margin-left: -150px; }
+  #toasts { top: 96px; width: 300px; right: 10px; } .toast { font-size: 13px; padding: 6px 10px; }
+  #aviso { bottom: 70px; font-size: 15px; padding: 7px 14px; }
+  .slot { min-width: 90px; font-size: 12px; } #hArmas { bottom: 10px; }
+  #panel.principal { padding-left: 5vw; } .principal h1 { font-size: 46px; } .principal h3 { margin: -4px 0 10px; font-size: 13px; }
+  .menuCentro { gap: 7px; } .principal .boton { min-width: 220px; padding-top: 7px; padding-bottom: 7px; } .nota { font-size: 12px; }
+}
+/* con controles táctiles, la velocidad sube por encima del joystick */
+body.tactil #hVelCaja { left: auto; right: 50%; margin-right: -100px; bottom: 54px; width: 200px; }
+body.tactil #aviso { bottom: 110px; }
+/* Pantalla de carga */
+#carga { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  background: radial-gradient(ellipse at 50% 40%, #0d2340 0%, #050a16 60%, #02040a 100%); transition: opacity .8s; }
+#carga.fuera { opacity: 0; pointer-events: none; }
+#carga h1 { margin: 0; font: 900 clamp(44px, 9vw, 96px) Orbitron, Arial, sans-serif; color: #fff; letter-spacing: .06em; text-shadow: 0 0 30px rgba(79,208,255,.8); animation: latido 2.4s ease-in-out infinite; }
+#carga h3 { margin: -10px 0 10px; font: 600 14px Orbitron, Arial, sans-serif; color: #ffd166; letter-spacing: .5em; }
+#carga .pista { width: min(360px, 70vw); height: 4px; background: rgba(255,255,255,.08); overflow: hidden; }
+#carga .pista i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #4fd0ff, #b9f0ff); box-shadow: 0 0 12px #4fd0ff; transition: width .3s; }
+#carga p { margin: 0; font: 13px Rajdhani, Arial, sans-serif; color: #8fb8d8; letter-spacing: .2em; text-transform: uppercase; }
+@keyframes latido { 50% { text-shadow: 0 0 46px rgba(79,208,255,1), 0 0 90px rgba(79,208,255,.35); } }
+/* Menú principal: los botones entran escalonados */
+#panel.principal .menuCentro > * { animation: entrar .7s cubic-bezier(.2,.8,.2,1) both; }
+#panel.principal .menuCentro > *:nth-child(2) { animation-delay: .08s; } #panel.principal .menuCentro > *:nth-child(3) { animation-delay: .16s; }
+#panel.principal .menuCentro > *:nth-child(4) { animation-delay: .24s; } #panel.principal .menuCentro > *:nth-child(5) { animation-delay: .32s; }
+#panel.principal .menuCentro > *:nth-child(6) { animation-delay: .40s; } #panel.principal .menuCentro > *:nth-child(7) { animation-delay: .48s; }
+#panel.principal .menuCentro > *:nth-child(n+8) { animation-delay: .56s; }
+@keyframes entrar { from { opacity: 0; transform: translateX(-30px); } }
+.principal h1 { animation: latido 3s ease-in-out infinite, entrar .8s both !important; }
+/* Marcador de impacto en la mira */
+#mira::before { content: ""; position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; margin: -15px; opacity: 0; transition: opacity .12s;
+  background: linear-gradient(45deg, transparent 46%, #fff 46%, #fff 54%, transparent 54%), linear-gradient(-45deg, transparent 46%, #fff 46%, #fff 54%, transparent 54%);
+  -webkit-mask: radial-gradient(circle, transparent 7px, #000 8px); mask: radial-gradient(circle, transparent 7px, #000 8px); }
+#mira.tocado::before { opacity: 1; transition: none; }
+#mira.baja::before { opacity: 1; transition: none; transform: scale(1.5); background: linear-gradient(45deg, transparent 44%, #ff6a4a 44%, #ff6a4a 56%, transparent 56%), linear-gradient(-45deg, transparent 44%, #ff6a4a 44%, #ff6a4a 56%, transparent 56%); }
 </style>
 </head>
 <body>
+<div id="carga"><h1>HALUSKI</h1><h3 data-tr>MISIÓN COLONIAL</h3><div class="pista"><i></i></div><p data-tr>Cargando</p></div>
 <canvas id="lienzo"></canvas>
 <div id="hud" class="oculto">
-  <div id="objetivo">Objetivo: <span id="hObjetivo"></span></div>
+  <div id="objetivo"><span data-tr>Objetivo:</span> <span id="hObjetivo"></span></div>
   <div id="hIzq" class="caja-hud">
-    <div class="vuelo-solo"><div class="etq"><span>Casco de la nave</span><span id="tVida"></span></div><div class="barra"><i id="bVida"></i></div></div>
-    <div class="etq"><span>Comida</span><span id="tComida"></span></div><div class="barra"><i id="bComida"></i></div>
+    <div class="vuelo-solo"><div class="etq"><span data-tr>Casco de la nave</span><span id="tVida"></span></div><div class="barra"><i id="bVida"></i></div></div>
+    <div class="etq"><span data-tr>Comida</span><span id="tComida"></span></div><div class="barra"><i id="bComida"></i></div>
   </div>
   <div id="hDer" class="caja-hud">
-    <div><b id="hMonedas">0</b> monedas</div>
-    <div>Carga <span id="hCarga"></span></div>
-    <div>Derrotados <span id="hDerrotas"></span> · Planetas <span id="hPlanetas"></span></div>
+    <div><b id="hMonedas">0</b> <span data-tr>monedas</span></div>
+    <div><span data-tr>Carga</span> <span id="hCarga"></span></div>
+    <div><span data-tr>Derrotados</span> <span id="hDerrotas"></span> · <span data-tr>Planetas</span> <span id="hPlanetas"></span></div>
   </div>
   <div class="vuelo-solo"><div id="mira"></div><div id="cargaPlasma"><i></i></div><div id="hArmas"></div>
-    <div id="hVelCaja" class="caja-hud"><div class="etq"><span>Velocidad</span><span id="hVel"></span></div><div class="barra"><i id="bVel"></i></div></div>
+    <div id="hVelCaja" class="caja-hud"><div class="etq"><span data-tr>Velocidad</span><span id="hVel"></span></div><div class="barra"><i id="bVel"></i></div></div>
     <div id="barraJefe"><span id="nJefe"></span><div class="barra"><i></i></div></div>
     <div id="marcadores"></div>
   </div>
@@ -135,7 +178,7 @@ kbd { background: #13254a; border: 1px solid var(--borde); padding: 1px 6px; fon
 <div id="panel"></div>
 <div id="fundido"></div>
 <div id="fps"></div>
-<video id="video" playsinline preload="auto"></video><div id="saltarVideo">ENTER o clic para saltar ▸</div>
+<video id="video" playsinline preload="auto"></video><div id="saltarVideo" data-tr>ENTER o clic para saltar ▸</div>
 
 <script src="lib/three.min.js"></script>
 <script src="lib/GLTFLoader.js"></script>
@@ -143,16 +186,18 @@ kbd { background: #13254a; border: 1px solid var(--borde); padding: 1px 6px; fon
 <script src="lib/BufferGeometryUtils.js"></script>
 <script src="lib/Lensflare.js"></script>
 <script src="lib/ImprovedNoise.js"></script>
-<script src="js/datos.js?v=10"></script>
-<script src="js/motor.js?v=10"></script>
-<script src="js/personajes.js?v=10"></script>
-<script src="js/mallas.js?v=10"></script>
-<script src="js/modelos.js?v=10"></script>
-<script src="js/ui.js?v=10"></script>
-<script src="js/estacion.js?v=10"></script>
-<script src="js/espacio.js?v=10"></script>
-<script src="js/planeta.js?v=10"></script>
-<script src="js/vestuario.js?v=10"></script>
-<script src="js/juego.js?v=10"></script>
+<script src="js/idioma.js?v=13"></script>
+<script src="js/datos.js?v=13"></script>
+<script src="js/motor.js?v=13"></script>
+<script src="js/personajes.js?v=13"></script>
+<script src="js/mallas.js?v=13"></script>
+<script src="js/modelos.js?v=13"></script>
+<script src="js/ui.js?v=13"></script>
+<script src="js/estacion.js?v=13"></script>
+<script src="js/espacio.js?v=13"></script>
+<script src="js/planeta.js?v=13"></script>
+<script src="js/vestuario.js?v=13"></script>
+<script src="js/juego.js?v=13"></script>
+<script src="js/tactil.js?v=13"></script>
 </body>
 </html>

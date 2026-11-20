@@ -47,7 +47,7 @@ const geosRoca = [1, 2, 3, 4, 5].map(s => HG.geoRoca(s * 31));
 // Partículas (explosiones, chispas)
 const NP = 2000, pPos = new Float32Array(NP * 3), pCol = new Float32Array(NP * 3), parts = [];
 const geoP = new T.BufferGeometry(); geoP.setAttribute("position", new T.BufferAttribute(pPos, 3)); geoP.setAttribute("color", new T.BufferAttribute(pCol, 3));
-const puntos = new T.Points(geoP, new T.PointsMaterial({ size: 6, vertexColors: true, blending: T.AdditiveBlending, depthWrite: false, transparent: true }));
+const puntos = new T.Points(geoP, new T.PointsMaterial({ map: texMota, size: 7, vertexColors: true, blending: T.AdditiveBlending, depthWrite: false, transparent: true })); // chispas redondas y suaves
 puntos.frustumCulled = false; escena.add(puntos);
 const chispas = (p, n, color, vel = 120, tam = 1) => {
   const c = new T.Color(color);
@@ -56,7 +56,28 @@ const chispas = (p, n, color, vel = 120, tam = 1) => {
     parts.push({ p: p.clone(), v: d, vida: HG.rnd(0.4, 1.1) * tam, max: 1.1 * tam, c });
   }
 };
-const explotar = (p, tam = 1) => { chispas(p, 60 * tam, "#ffb347", 160 * tam, tam); chispas(p, 30 * tam, "#ff5a2a", 90 * tam, tam); chispas(p, 15, "#ffffff", 60, tam); HG.audio.sfx("explosion"); };
+// fogonazos (luz de la explosión) y ondas de choque: piezas reutilizables
+const texAnillo = HG.lienzoTex(128, 128, (c) => { const g = c.createRadialGradient(64, 64, 34, 64, 64, 64); g.addColorStop(0, "rgba(255,255,255,0)"); g.addColorStop(0.7, "rgba(255,255,255,0.9)"); g.addColorStop(1, "rgba(255,255,255,0)"); c.fillStyle = g; c.fillRect(0, 0, 128, 128); });
+const destellos = Array.from({ length: 24 }, (_, i) => {
+  const anillo = i % 2 === 1, s = new T.Sprite(new T.SpriteMaterial({ map: anillo ? texAnillo : texMota, color: HG.lin(anillo ? "#ffd2a0" : "#ffc070"), transparent: true, blending: T.AdditiveBlending, depthWrite: false, opacity: 0 }));
+  s.visible = false; escena.add(s); return { s, anillo, t: 0, dur: 1, tam: 1 };
+});
+let temblor = 0;
+const efecto = (p, anillo, tam, dur) => { const e = destellos.find(e => e.anillo === anillo && !e.s.visible); if (!e) return; e.s.position.copy(p); e.t = 0; e.dur = dur; e.tam = tam; e.s.visible = true; };
+function actualizarEfectos(dt) {
+  for (const e of destellos) if (e.s.visible) {
+    e.t += dt; const u = e.t / e.dur; if (u >= 1) { e.s.visible = false; continue; }
+    const esc = e.anillo ? e.tam * (0.3 + 1.4 * Math.sqrt(u)) : e.tam * (0.6 + 0.6 * u);
+    e.s.scale.set(esc, esc, 1); e.s.material.opacity = e.anillo ? (1 - u) * 0.8 : (1 - u) * (1 - u);
+  }
+  temblor = Math.max(0, temblor - dt * 2.5);
+}
+const explotar = (p, tam = 1) => {
+  chispas(p, 60 * tam, "#ffb347", 160 * tam, tam); chispas(p, 30 * tam, "#ff5a2a", 90 * tam, tam); chispas(p, 15, "#ffffff", 60, tam);
+  efecto(p, false, 45 * tam, 0.35 + 0.15 * tam); if (tam >= 0.8) efecto(p, true, 70 * tam, 0.55 + 0.1 * tam);
+  const d = N.pos.distanceTo(p); temblor = Math.min(1, temblor + tam * HG.clamp(1 - d / 600, 0, 1) * 0.6);
+  HG.audio.sfx("explosion");
+};
 
 // ---------- Nave del jugador ----------
 const N = { g: null, pos: new T.Vector3(), vel: new T.Vector3(), yaw: 0, pitch: 0, roll: 0, vel0: 0, lat: 0, hp: 100, hpMax: 100, viva: true, carga: 0, cds: {}, arma: 0, pulsoCd: 0, muerteT: 0 };
@@ -100,11 +121,12 @@ function crearEnemigo(tipo, nivel, pos, planeta = -1, jefe = null) {
 function danarEnemigo(e, d, dueno = true) {
   if (e.hp <= 0) return;
   e.hp -= d; chispas(e.pos, 6, "#ffffff", 60, 0.5);
+  if (dueno) HG.ui.impacto(e.hp <= 0);
   if (e.hp <= 0) {
     explotar(e.pos, e.jefe ? 4 : 1.2);
     const pr = e.jefe ? HG.PLANETAS[e.planeta].jefe.premio : Math.round(120 + 90 * e.nivel + HG.rnd(0, 80));
     HG.P.monedas += pr; HG.P.derrotas++;
-    HG.ui.toast(e.jefe ? `¡Has derrotado a ${e.nombre}! +${HG.fmt(pr)} monedas. Ya puedes plantar tu bandera en ${HG.PLANETAS[e.planeta].nombre}.` : `Pirata derribado · +${HG.fmt(pr)} monedas`, e.jefe ? "oro" : "");
+    HG.ui.toast(e.jefe ? HG.t("¡Has derrotado a {0}! +{1} monedas. Ya puedes plantar tu bandera en {2}.", e.nombre, HG.fmt(pr), HG.PLANETAS[e.planeta].nombre) : HG.t("Pirata derribado · +{0} monedas", HG.fmt(pr)), e.jefe ? "oro" : "");
     if (e.jefe) { const pp = HG.P.planetas[HG.PLANETAS[e.planeta].id] = HG.P.planetas[HG.PLANETAS[e.planeta].id] || {}; pp.jefe = true; }
     if (Math.random() < (e.jefe ? 1 : 0.3)) { const P = HG.PLANETAS[Math.max(0, e.planeta)]; botin(e.pos, P.minerales[HG.rint(0, 1)], e.jefe ? 15 : HG.rint(1, 4)); }
     HG.guardarPartida(); HG.juego.comprobarFinal();
@@ -113,8 +135,8 @@ function danarEnemigo(e, d, dueno = true) {
 const BLINDAJE = 0.35; // las naves solo reciben un 35 % del daño de disparos, choques y misiles
 function danarJugador(d) {
   if (!N.viva) return;
-  N.hp -= d * BLINDAJE; HG.ui.golpe(); HG.audio.sfx("golpe");
-  if (N.hp <= 0) { N.hp = 0; N.viva = false; N.muerteT = 2.5; explotar(N.pos, 3); N.g.visible = false; HG.ui.toast("¡Tu nave ha explotado! Pierdes la carga.", "rojo"); }
+  N.hp -= d * BLINDAJE; HG.ui.golpe(); HG.audio.sfx("golpe"); temblor = Math.min(1, temblor + 0.35);
+  if (N.hp <= 0) { N.hp = 0; N.viva = false; N.muerteT = 2.5; explotar(N.pos, 3); N.g.visible = false; HG.ui.toast(HG.t("¡Tu nave ha explotado! Pierdes la carga."), "rojo"); }
 }
 // distancia de un punto al segmento a-b (para que las balas rápidas no atraviesen sin chocar)
 const _ab = new T.Vector3(), _ap = new T.Vector3();
@@ -142,9 +164,11 @@ function gestionarPiratas(dt) {
         respawnPl[k] = vivosDe(k) + 1 >= max ? 25 : 1.2;
       }
       if (!est.jefe && d < 1700 && !enemigos.some(e => e.jefe && e.planeta === k)) {
-        const p = pl.pos.clone().add(N.pos.clone().sub(pl.pos).normalize().multiplyScalar(pl.P.radio + 300));
+        // el jefe aparece sobre el planeta pero apartado de la nave (al despegar no se te echa encima)
+        const haciaNave = N.pos.clone().sub(pl.pos).normalize(), lado = new T.Vector3(0, 1, 0).cross(haciaNave).normalize();
+        const p = pl.pos.clone().add(haciaNave.multiplyScalar(0.55).add(lado.multiplyScalar(0.85)).normalize().multiplyScalar(pl.P.radio + 420));
         crearEnemigo("canonera", pl.P.nivel, p, k, pl.P.jefe);
-        HG.ui.toast(`⚠ ${pl.P.jefe.nombre} defiende ${pl.P.nombre}`, "rojo"); HG.audio.sfx("alarma");
+        HG.ui.toast(HG.t("⚠ {0} defiende {1}", pl.P.jefe.nombre, pl.P.nombre), "rojo"); HG.audio.sfx("alarma");
       }
     }
   });
@@ -153,7 +177,7 @@ function gestionarPiratas(dt) {
     if (encuentroT <= 0) {
       encuentroT = HG.rnd(35, 55); const nv = Math.min(5, 1 + Math.floor(dEst / 5000));
       for (let i = 0; i < HG.rint(2, 3); i++) crearEnemigo(["explorador", "dardo", "canonera"][HG.rint(0, 2)], nv, N.pos.clone().add(fwd().multiplyScalar(1400)).add(new T.Vector3(HG.rnd(-300, 300), HG.rnd(-150, 150), HG.rnd(-300, 300))), -1);
-      HG.ui.toast("¡Piratas a la vista!", "rojo"); HG.audio.sfx("alarma");
+      HG.ui.toast(HG.t("¡Piratas a la vista!"), "rojo"); HG.audio.sfx("alarma");
     }
   }
 }
@@ -246,6 +270,7 @@ function actualizarNave(dt, activo) {
   cam.position.lerp(objCam, 1 - Math.exp(-dt * 7));
   cam.up.set(0, 1, 0).applyQuaternion(q);
   cam.lookAt(N.pos.clone().add(fwd().multiplyScalar(L * 4)));
+  if (temblor > 0) { const a = temblor * temblor * 0.025; cam.rotation.x += HG.rnd(-a, a); cam.rotation.y += HG.rnd(-a, a); } // la cámara tiembla con las explosiones y los golpes
   cam.fov += ((HG.ajustes.fov + Math.min(20, Math.abs(N.vel0) / s.velMax * 12)) - cam.fov) * Math.min(1, dt * 3); cam.updateProjectionMatrix();
   sky.position.copy(cam.position);
 }
@@ -275,7 +300,13 @@ function actualizarEnemigos(dt) {
         if (Math.random() < 0.35) disparar(e.pos.clone(), dir.clone(), 330, e.dano * 2.5, false, "misil", "#ff3c6e", { obj: "jugador" });
       } else disparar(e.pos.clone(), dir.add(new T.Vector3(HG.rnd(-0.03, 0.03), HG.rnd(-0.03, 0.03), HG.rnd(-0.03, 0.03))).normalize(), 700, e.dano, false, "bala", "#ff5a3a");
     }
-    if (N.viva && d < e.radio + 8) { danarJugador(e.jefe ? 25 : 20); danarEnemigo(e, 60); }
+    // choque: daño una vez y las dos naves rebotan (antes se repetía en cada fotograma)
+    e.choqueT = (e.choqueT || 0) - dt;
+    if (N.viva && d < e.radio + 8 && e.choqueT <= 0) {
+      e.choqueT = 0.8; danarJugador(e.jefe ? 25 : 20); danarEnemigo(e, e.jefe ? 15 : 60);
+      const empuje = aP.clone().setLength(-1); e.vel.copy(empuje.multiplyScalar(e.velMax * 1.5)); N.vel0 *= 0.4;
+      explotar(e.pos.clone().lerp(N.pos, 0.5), 0.4);
+    }
   }
 }
 function actualizarBalas(dt) {
@@ -341,17 +372,24 @@ function marcadores() {
     let x = (v.x + 1) / 2, y = (1 - v.y) / 2;
     if (detras) { x = 1 - x; y = 1 - y; }
     const fuera = detras || x < 0.03 || x > 0.97 || y < 0.05 || y > 0.95;
-    if (fuera) { const cx = x - 0.5, cy = y - 0.5, k = 0.46 / Math.max(Math.abs(cx), Math.abs(cy) / 0.92, 0.0001); x = 0.5 + cx * k; y = 0.5 + cy * k; }
+    if (fuera) { const cx = x - 0.5, cy = y - 0.5, k = 0.46 / Math.max(Math.abs(cx), Math.abs(cy) / 0.92, 0.0001); x = 0.5 + cx * k; y = Math.min(0.85, 0.5 + cy * k); } // abajo no tapa las armas
     out.push({ x, y, texto, tipo, dist, fuera });
   };
-  add(new T.Vector3(0, 0, 0), "Estación", "estacion", N.pos.length());
+  add(new T.Vector3(0, 0, 0), HG.t("Estación"), "estacion", N.pos.length());
   planetas.forEach(pl => { const st = HG.P.planetas[pl.P.id] || {}; add(pl.pos, pl.P.nombre + (st.conquistado ? " ⚑" : ""), st.conquistado ? "conquistado" : "planeta", N.pos.distanceTo(pl.pos) - pl.P.radio); });
   enemigos.filter(e => e.pos.distanceTo(N.pos) < 2600).slice(0, 14).forEach(e => add(e.pos, e.jefe ? e.nombre : "", e.jefe ? "jefe" : "enemigo", e.pos.distanceTo(N.pos)));
+  // los marcadores del borde que se amontonan: solo el más importante (jefe, estación, el más cercano) lleva nombre
+  const prio = m => (m.tipo === "jefe" ? 0 : m.tipo === "estacion" ? 1 : 2) * 1e6 + m.dist;
+  const puestos = [];
+  for (const m of out.filter(m => m.fuera && m.tipo !== "enemigo").sort((a, b) => prio(a) - prio(b))) {
+    if (puestos.some(o => Math.abs(o.x - m.x) < 0.07 && Math.abs(o.y - m.y) < 0.07)) m.mini = true; else puestos.push(m);
+  }
   return out;
 }
 
 HG.Espacio = {
   escena,
+  explotarDelante(d = 120, tam = 1) { explotar(N.pos.clone().add(fwd().multiplyScalar(d)), tam); }, // para las pruebas automáticas
   entrar(desde) {
     prepararNave(); N.viva = true; N.g.visible = true; N.carga = 0; N.arma = Math.min(N.arma, HG.P.equipadas.length - 1);
     for (let i = enemigos.length - 1; i >= 0; i--) quitar(enemigos, i);
@@ -366,7 +404,7 @@ HG.Espacio = {
   salir() { HG.P.vidaNave = N.viva && N.hp > 0 ? N.hp : null; cam.up.set(0, 1, 0); cam.fov = HG.ajustes.fov; cam.updateProjectionMatrix(); },
   actualizar(dt, t, activo) {
     actualizarNave(dt, activo);
-    gestionarPiratas(dt); actualizarEnemigos(dt); actualizarBalas(dt); actualizarParticulas(dt);
+    gestionarPiratas(dt); actualizarEnemigos(dt); actualizarBalas(dt); actualizarParticulas(dt); actualizarEfectos(dt);
     estacion.userData.anillo.rotation.z += dt * 0.03; estacion.userData.luces.forEach((l, i) => { l.visible = Math.sin(t * 3 + i) > 0; });
     planetas.forEach(pl => { pl.g.userData.esfera.rotation.y += dt * 0.01; if (pl.g.userData.nubes) pl.g.userData.nubes.rotation.y += dt * 0.014; });
     for (let i = 0; i < NPOLVO; i++) for (let k = 0; k < 3; k++) { // el polvo se recoloca alrededor de la nave
@@ -378,8 +416,8 @@ HG.Espacio = {
     // aterrizar o atracar
     zonaCerca = null;
     if (N.viva) {
-      if (N.pos.length() < 650) zonaCerca = { tipo: "atracar", texto: "Atracar en la estación" };
-      planetas.forEach((pl, k) => { if (N.pos.distanceTo(pl.pos) < pl.P.radio + 280) zonaCerca = { tipo: "aterrizar", planeta: k, texto: `Aterrizar en ${pl.P.nombre}` }; });
+      if (N.pos.length() < 650) zonaCerca = { tipo: "atracar", texto: HG.t("Atracar en la estación") };
+      planetas.forEach((pl, k) => { if (N.pos.distanceTo(pl.pos) < pl.P.radio + 280) zonaCerca = { tipo: "aterrizar", planeta: k, texto: HG.t("Aterrizar en {0}", pl.P.nombre) }; });
     }
     HG.ui.aviso(activo && zonaCerca ? `<b>E</b> · ${zonaCerca.texto}` : null);
     if (activo && zonaCerca && HG.input.pulsada("KeyE")) HG.juego.zona(zonaCerca.tipo, zonaCerca.planeta);

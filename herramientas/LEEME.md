@@ -19,7 +19,7 @@ rejilla muestre estas mismas coordenadas.
 
 | Campo | Qué es |
 |---|---|
-| `J` | Articulaciones. `cad` cadera, `ing` entrepierna, `rod` rodilla, `tob` tobillo, `cin` cintura, `cue` base del cuello (y). `hom`, `cod`, `mun`: `[x, y]` del hombro, codo y muñeca (x positiva; vale para los dos lados). `xp` separación de cada pierna. `bota` altura de la caña de la bota. `manoFin` y de la punta de los dedos. Opcionales: `brazoZ`, `manoZ` (z del eje del brazo y de la mano), `dedosX` |
+| `J` | Articulaciones. `cad` cadera, `ing` entrepierna, `rod` rodilla, `tob` tobillo, `cin` cintura, `cue` base del cuello (y). `hom`, `cod`, `mun`: `[x, y]` del hombro, codo y muñeca (x positiva; vale para los dos lados). `xp` separación de cada pierna. `bota` altura de la caña de la bota. `manoFin` y de la punta de los dedos. Opcionales: `brazoZ`, `manoZ` (z del eje del brazo y de la mano), `dedosX`. Si los brazos no son simétricos, `D` (brazo derecho) e `I` (izquierdo) cambian `hom`, `cod` y `mun` de ese lado: `"D": {"hom": [0.105, 0.76], "cod": [0.136, 0.58], "mun": [0.16, 0.44]}` |
 | `radios` | `brazo`: `[brazo, antebrazo, mano]` radio aproximado de cada tramo. `pierna`. Opcionales: `troncoEscalaX`, `troncoEscalaZ` (agranda o encoge el tronco estimado), `dato` (3: cuánto manda la forma frente a la suavidad del corte), `suave` (1.2), `nucleo` (0.55: lo que seguro es brazo) |
 | `axila` | Hasta dónde se rasga la unión brazo-tronco, medido hacia abajo desde `hom[1]` (−0.005 = hasta algo por encima del hombro) |
 | `pelo` | Nacimiento del pelo: `frente` (y en el centro de la frente), `sien` (y en las sienes), `nuca` (y por detrás), `zCara` (por delante de esta z es la cara), `anchoCara` (media anchura de la cara), `lateral` (y del pelo a los lados) |
@@ -27,6 +27,8 @@ rejilla muestre estas mismas coordenadas.
 | `zonas` | Lista de zonas a mano, por orden (la última gana): `{"zona": "acento", "caja": [x0,x1,y0,y1,z0,z1], "simetrica": true}` o `{"zona": "...", "elipse": {"c": [x,y,z], "r": [rx,ry,rz]}}`. Filtros opcionales: `"partes": ["tronco","brazo","pierna"]`, `"normalY"` (mínimo), `"relieveMin"`, `"si": ["traje"]` (solo cambia esas zonas) |
 | `paleta` | Color de cada zona (`traje`, `panel`, `detalle`, `guantes`, `botas`, `suela`, `cuello`, `mochila`, `piel`, `pelo`, `metal`, `acento`, `visor`, `luz`, `labios`, `ceja`) y de los ojos (`ojos`). `metal` y `visor` brillan como metal; `luz` emite luz |
 | `cara` | Rasgos pintados: `ojo: [x, y]` (centro de cada ojo), `ojoW`, `ojoH` (ancho y alto de la abertura), `ojoInclina`, `iris` (fracción de `ojoW`), `ceja` (y), `cejaGrosor`, `nariz` (se detecta sola: `[0, y, z]` de la punta), `narizAncho`, `fosas: [x, y]`, `boca: [0, y]`, `bocaW`, `labioSup`, `labioInf`, `sonrisa`, `ventana: [x0, x1, y0, y1]` (zona de la cara donde se pinta) |
+| `subdividir` | Para modelos con pocos triángulos: tapa los agujeros que deja `quitar`, parte cada triángulo en 4 tantas veces como diga (2 en Nadia) y suaviza (`suavizarMalla`, pasos de Taubin). Opcionales: `desplegar` (deshace pliegues), `quitarPicos` |
+| `suavizarPesos` | Pasos de reparto de los pesos de piel con los vecinos (12 en Nadia): hombros sin dientes de sierra |
 | `quitar` | Cajas `[x0,x1,y0,y1,z0,z1]`: se quitan los triángulos que tocan (restos sueltos) |
 | otros | `piezaMinima`, `anguloCabeza` (70), `anguloCuerpo` (40), `suavizado` (25), `resAO` (200), `fuerzaAO` (1), `tieneCara` (false para el robot) |
 

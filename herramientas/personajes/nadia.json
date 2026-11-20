@@ -20,7 +20,35 @@
   ],
   "xp": 0.07,
   "bota": 0.1,
-  "manoFin": 0.37
+  "manoFin": 0.37,
+  "D": {
+   "hom": [
+    0.11,
+    0.78
+   ],
+   "cod": [
+    0.165,
+    0.62
+   ],
+   "mun": [
+    0.21,
+    0.46
+   ]
+  },
+  "I": {
+   "hom": [
+    0.105,
+    0.78
+   ],
+   "cod": [
+    0.141,
+    0.62
+   ],
+   "mun": [
+    0.182,
+    0.46
+   ]
+  }
  },
  "radios": {
   "brazo": [
@@ -30,7 +58,7 @@
   ],
   "pierna": 0.075
  },
- "axila": 0.09,
+ "axila": 0.2,
  "pelo": {
   "frente": 0.955,
   "sien": 0.935,
@@ -47,16 +75,49 @@
   {
    "zona": "panel",
    "caja": [
-    0.075,
-    0.2,
-    0.48,
-    0.78,
-    -0.05,
-    0.05
+    0.05,
+    0.45,
+    0.3,
+    0.82,
+    -0.3,
+    0.3
    ],
    "simetrica": true,
+   "partes": [
+    "brazo"
+   ]
+  },
+  {
+   "zona": "panel",
+   "caja": [
+    0.1,
+    0.45,
+    0.55,
+    0.8,
+    -0.3,
+    0.3
+   ],
+   "simetrica": true,
+   "partes": [
+    "tronco"
+   ],
    "si": [
     "traje"
+   ]
+  },
+  {
+   "zona": "guantes",
+   "caja": [
+    0.05,
+    0.45,
+    0.3,
+    0.47,
+    -0.3,
+    0.3
+   ],
+   "simetrica": true,
+   "partes": [
+    "brazo"
    ]
   }
  ],
@@ -115,7 +176,7 @@
   "traje": "#2e6a33",
   "panel": "#1f3c6e",
   "detalle": "#1f3c6e",
-  "guantes": "#24502a",
+  "guantes": "#1b2a3f",
   "botas": "#2a2f24",
   "cuello": "#1f3c6e",
   "mochila": "#8f959c",
@@ -124,5 +185,9 @@
   "ceja": "#141418",
   "ojos": "#5a3a22",
   "labios": "#b0625a"
- }
+ },
+ "subdividir": 2,
+ "suavizarMalla": 20,
+ "suavizarPesos": 12,
+ "desplegar": 120
 }

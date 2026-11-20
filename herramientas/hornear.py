@@ -71,6 +71,94 @@ def soldar(V, F, tol=1e-6, X=None):
     return V2, F2[a > 1e-14], X
 
 
+def subdividir(V, F, X=None, niveles=1, suave=8):
+    """Para los modelos con pocos triángulos: parte cada triángulo en cuatro (por los puntos medios de sus aristas)
+    y suaviza con Taubin (λ/μ), que redondea las facetas sin encoger la figura. X: coordenadas de textura por esquina."""
+    for _ in range(niveles):
+        E = np.sort(np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), axis=1)
+        Eu, inv = np.unique(E, axis=0, return_inverse=True); inv = inv.reshape(3, -1)
+        mid = len(V) + np.arange(len(Eu))
+        V = np.vstack([V, (V[Eu[:, 0]] + V[Eu[:, 1]]) / 2])
+        a, b, c = F[:, 0], F[:, 1], F[:, 2]; ab, bc, ca = mid[inv[0]], mid[inv[1]], mid[inv[2]]
+        F = np.concatenate([np.stack([a, ab, ca], 1), np.stack([ab, b, bc], 1), np.stack([ca, bc, c], 1), np.stack([ab, bc, ca], 1)])
+        if X is not None:
+            A, B, C = X[:, 0], X[:, 1], X[:, 2]; AB, BC, CA = (A + B) / 2, (B + C) / 2, (C + A) / 2
+            X = np.concatenate([np.stack([A, AB, CA], 1), np.stack([AB, B, BC], 1), np.stack([CA, BC, C], 1), np.stack([AB, BC, CA], 1)])
+    Ea = np.unique(np.sort(np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), axis=1), axis=0)
+    grado = np.maximum(np.bincount(Ea.ravel(), minlength=len(V)), 1).astype(float)[:, None]
+    for _ in range(suave):
+        for lam in (0.5, -0.53):
+            suma = np.zeros_like(V); np.add.at(suma, Ea[:, 0], V[Ea[:, 1]]); np.add.at(suma, Ea[:, 1], V[Ea[:, 0]])
+            V = V + lam * (suma / grado - V)
+    return V, F, X
+
+
+def quitar_picos(V, F, it=30, umbral=1.2):
+    """Aplana las puntas y aletas finas (vértices muy separados de la media de sus vecinos) sin tocar el resto."""
+    E = np.unique(np.sort(np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), axis=1), axis=0)
+    grado = np.maximum(np.bincount(E.ravel(), minlength=len(V)), 1).astype(float)[:, None]
+    lmed = np.linalg.norm(V[E[:, 0]] - V[E[:, 1]], axis=1).mean()
+    for _ in range(it):
+        suma = np.zeros_like(V); np.add.at(suma, E[:, 0], V[E[:, 1]]); np.add.at(suma, E[:, 1], V[E[:, 0]])
+        lap = suma / grado - V
+        pico = np.linalg.norm(lap, axis=1) > umbral * lmed
+        if not pico.any():
+            break
+        V = V + 0.7 * lap * pico[:, None]
+    return V
+
+
+def desplegar(V, F, it=80):
+    """Deshace los pliegues (triángulos vueltos del revés respecto a sus vecinos), que se ven como dientes de sierra
+    en el contorno: relaja solo los vértices de esos triángulos y sus vecinos hasta que no quede ninguno."""
+    E = np.unique(np.sort(np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), axis=1), axis=0)
+    grado = np.maximum(np.bincount(E.ravel(), minlength=len(V)), 1).astype(float)[:, None]
+    for _ in range(it):
+        fn = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
+        vn = np.zeros_like(V)
+        for k in range(3):
+            np.add.at(vn, F[:, k], fn)
+        vn /= np.maximum(np.linalg.norm(vn, axis=1, keepdims=True), 1e-12)
+        media = (vn[F[:, 0]] + vn[F[:, 1]] + vn[F[:, 2]]) / 3
+        malo = np.einsum("ij,ij->i", fn, media) < 0
+        if not malo.any():
+            break
+        zona = np.zeros(len(V), dtype=bool); zona[F[malo].ravel()] = True
+        z2 = zona.copy(); z2[E[zona[E[:, 0]], 1]] = True; z2[E[zona[E[:, 1]], 0]] = True   # y sus vecinos
+        suma = np.zeros_like(V); np.add.at(suma, E[:, 0], V[E[:, 1]]); np.add.at(suma, E[:, 1], V[E[:, 0]])
+        V = np.where(z2[:, None], V + 0.6 * (suma / grado - V), V)
+    return V
+
+
+def cerrar_huecos(V, F, X=None):
+    """Cierra cada agujero (bucle de aristas de borde) con un abanico desde su centro: después de quitar aletas
+    con "quitar" la malla vuelve a estar cerrada y el suavizado la deja lisa en lugar de con bordes rasgados."""
+    E = np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]])
+    todas = set(map(tuple, E.tolist()))
+    sig = {}
+    for a, b in E.tolist():
+        if (b, a) not in todas:
+            sig[a] = b
+    nuevosV, nuevasF, visto = [], [], set()
+    for ini in list(sig):
+        if ini in visto:
+            continue
+        bucle, v = [], ini
+        while v not in visto and v in sig:
+            visto.add(v); bucle.append(v); v = sig[v]
+        if len(bucle) < 3:
+            continue
+        c = len(V) + len(nuevosV); nuevosV.append(V[bucle].mean(axis=0))
+        for i in range(len(bucle)):
+            nuevasF.append([bucle[(i + 1) % len(bucle)], bucle[i], c])
+    if not nuevosV:
+        return V, F, X
+    F2 = np.vstack([F, np.array(nuevasF)])
+    if X is not None:
+        X = np.concatenate([X, np.repeat(X.mean(axis=0, keepdims=True), len(nuevasF), axis=0)])
+    return np.vstack([V, np.array(nuevosV)]), F2, X
+
+
 def compactar(V, F):
     usados = np.unique(F)
     mapa = -np.ones(len(V), dtype=np.int64); mapa[usados] = np.arange(len(usados))
@@ -251,9 +339,16 @@ class Flujo:
                 total += f
 
 
+def lado_J(J, lado):
+    """Articulaciones de un lado: las comunes con lo que cambie J["D"] (brazo derecho, x < 0) o J["I"] (izquierdo).
+    Sirve para los modelos que no son simétricos (un brazo más pegado al cuerpo que el otro)."""
+    o = dict(J); o.update(J.get("D" if lado < 0 else "I", {})); return o
+
+
 def separar_brazo(V, F, E, vn, J, R, lado):
     """True para los vértices del brazo de ese lado (lado -1 = derecho, en x < 0)."""
     sx = lado
+    J = lado_J(J, lado)
     ho = np.array([sx * J["hom"][0], J["hom"][1], J.get("brazoZ", 0.0)])
     co = np.array([sx * J["cod"][0], J["cod"][1], J.get("brazoZ", 0.0)])
     mu = np.array([sx * J["mun"][0], J["mun"][1], J.get("manoZ", J.get("brazoZ", 0.0))])
@@ -269,8 +364,9 @@ def separar_brazo(V, F, E, vn, J, R, lado):
         d, _ = dist_seg(V, a, b); dA = np.minimum(dA, d / r)
     # el cuerpo: elipse del tronco a cada altura, piernas, pelvis y la línea de los hombros
     if "troncoY" not in R:
-        R["troncoY"], R["troncoX"], R["troncoZ"], R["troncoCZ"] = perfil_tronco(V, F, J, R)
-    rx = np.interp(V[:, 1], R["troncoY"], R["troncoX"]); rz = np.interp(V[:, 1], R["troncoY"], R["troncoZ"])
+        R["troncoY"], R["troncoXD"], R["troncoXI"], R["troncoZ"], R["troncoCZ"] = perfil_tronco(V, F, J, R)
+        R["troncoX"] = list(np.maximum(R["troncoXD"], R["troncoXI"]))
+    rx = np.interp(V[:, 1], R["troncoY"], R["troncoXD"] if lado < 0 else R["troncoXI"]); rz = np.interp(V[:, 1], R["troncoY"], R["troncoZ"])
     yc = np.clip(V[:, 1], J["cad"] - 0.05, J["cue"])
     dT = np.sqrt((V[:, 0] / rx) ** 2 + ((V[:, 2] - R.get("troncoCZ", 0.0)) / rz) ** 2 + ((V[:, 1] - yc) / 0.06) ** 2)
     dP, _ = dist_seg(V, np.array([sx * J["xp"], J["ing"], 0]), np.array([sx * J["xp"], 0.0, 0]))
@@ -334,7 +430,8 @@ def corte(V, F, y):
 
 def perfil_tronco(V, F, J, R):
     """Semiejes del tronco a cada altura (x e z): el trozo de la sección que contiene x = 0, sin los brazos."""
-    ys, rxs, rzs, czs = [], [], [], []
+    ys, rxd, rxi, rzs, czs = [], [], [], [], []
+    hD, hI = lado_J(J, -1)["hom"][0], lado_J(J, 1)["hom"][0]
     for y in np.arange(J["cad"] - 0.06, J["cue"] + 0.001, 0.01):
         sg = corte(V, F, y)
         if not len(sg):
@@ -347,12 +444,13 @@ def perfil_tronco(V, F, J, R):
             else:
                 grupos.append([x0, x1, [i]])
         g = min(grupos, key=lambda g: 0 if g[0] <= 0 <= g[1] else min(abs(g[0]), abs(g[1])))
-        rx = max(-g[0], g[1])
-        if y < J["hom"][1] - 0.02:
-            rx = min(rx, J["hom"][0] - 0.01)   # si el brazo está pegado al costado, el tronco no pasa del hombro
+        d, i = max(-g[0], 0.02), max(g[1], 0.02)
+        if y < J["hom"][1] - 0.02:   # si el brazo está pegado al costado, el tronco no pasa del hombro
+            d, i = min(d, hD - 0.01), min(i, hI - 0.01)
         zz = sg[g[2]][:, [1, 3]]
-        ys.append(float(y)); rxs.append(rx * R.get("troncoEscalaX", 1.0)); rzs.append((zz.max() - zz.min()) / 2 * R.get("troncoEscalaZ", 1.0)); czs.append((zz.max() + zz.min()) / 2)
-    return ys, rxs, rzs, float(np.median(czs))
+        ex = R.get("troncoEscalaX", 1.0)
+        ys.append(float(y)); rxd.append(d * ex); rxi.append(i * ex); rzs.append((zz.max() - zz.min()) / 2 * R.get("troncoEscalaZ", 1.0)); czs.append((zz.max() + zz.min()) / 2)
+    return ys, rxd, rxi, rzs, float(np.median(czs))
 
 
 # ---------------------------------------------------------------- pesos
@@ -364,8 +462,8 @@ def pesos_parte(P, parte, J):
         m = parte == pid
         if not m.any():
             continue
-        Q = P[m]
-        ho = np.array([lado * J["hom"][0], J["hom"][1]]); co = np.array([lado * J["cod"][0], J["cod"][1]]); mu = np.array([lado * J["mun"][0], J["mun"][1]])
+        Q = P[m]; Jl = lado_J(J, lado)
+        ho = np.array([lado * Jl["hom"][0], Jl["hom"][1]]); co = np.array([lado * Jl["cod"][0], Jl["cod"][1]]); mu = np.array([lado * Jl["mun"][0], Jl["mun"][1]])
         def tproj(a, b):
             d = b - a; return ((Q[:, :2] - a) @ d) / (d @ d)
         tc = tproj(ho, co); tm = tproj(co, mu)
@@ -401,7 +499,7 @@ def pesos_parte(P, parte, J):
         # el tronco junto a la articulación del hombro sigue un poco al brazo (hombro redondo al levantarlo)
         h_peso = np.zeros(len(ii)); h_idx = np.zeros(len(ii), dtype=int)
         for lado, b0 in ((-1, 3), (1, 6)):
-            d = np.sqrt((Q[:, 0] - lado * J["hom"][0]) ** 2 + ((Q[:, 1] - J["hom"][1]) * 1.2) ** 2 + (Q[:, 2] * 0.8) ** 2)
+            d = np.sqrt((Q[:, 0] - lado * lado_J(J, lado)["hom"][0]) ** 2 + ((Q[:, 1] - J["hom"][1]) * 1.2) ** 2 + (Q[:, 2] * 0.8) ** 2)
             w = sstep(0.085, 0.03, d) * 0.65 * (np.sign(Q[:, 0]) == lado)
             mejor = w > h_peso
             h_peso = np.where(mejor, w, h_peso); h_idx = np.where(mejor, b0, h_idx)
@@ -418,6 +516,21 @@ def pesos_parte(P, parte, J):
     orden = np.argsort(-W, axis=1)[:, :4]
     wv = np.take_along_axis(W, orden, axis=1)
     wv /= np.maximum(wv.sum(axis=1, keepdims=True), 1e-9)
+    return orden.astype(np.uint8), wv
+
+
+def suavizar_pesos(si, sw, F, it, nh=15):
+    """Reparte los pesos de piel con los vecinos (por las aristas que siguen unidas tras rasgar):
+    el paso del brazo al tronco deja de ser un escalón y el hombro no hace dientes de sierra al moverse."""
+    n = len(si); W = np.zeros((n, nh))
+    np.add.at(W, (np.repeat(np.arange(n), 4), si.ravel().astype(np.int64)), sw.ravel())
+    E = np.unique(np.sort(np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), axis=1), axis=0)
+    grado = np.maximum(np.bincount(E.ravel(), minlength=n), 1).astype(float)[:, None]
+    for _ in range(it):
+        suma = np.zeros_like(W); np.add.at(suma, E[:, 0], W[E[:, 1]]); np.add.at(suma, E[:, 1], W[E[:, 0]])
+        W = 0.5 * W + 0.5 * suma / grado
+    orden = np.argsort(-W, axis=1)[:, :4]
+    wv = np.take_along_axis(W, orden, axis=1); wv /= np.maximum(wv.sum(axis=1, keepdims=True), 1e-9)
     return orden.astype(np.uint8), wv
 
 
@@ -461,9 +574,9 @@ def rasgar(V, F, parte, J, cfg):
     # tapas: bordes nuevos (aristas que solo tiene un triángulo y que antes tenían dos)
     def bordes(Fx):
         cuenta = defaultdict(int); dirig = {}
-        for t in Fx:
+        for i, t in enumerate(Fx):
             for a, b in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
-                cuenta[(min(a, b), max(a, b))] += 1; dirig[(a, b)] = True
+                cuenta[(min(a, b), max(a, b))] += 1; dirig[(a, b)] = i
         return cuenta, dirig
     c0, _ = bordes([[origen[a] for a in t] for t in F])
     c1, d1 = bordes(F2)
@@ -478,30 +591,52 @@ def rasgar(V, F, parte, J, cfg):
         while padre[a] != a:
             padre[a] = padre[padre[a]]; a = padre[a]
         return a
+    # cada lado del corte lleva su propia tapa: si una tapa uniera el lado del brazo con el del tronco,
+    # sus triángulos se estirarían como aletas al levantar el brazo
+    lado_de = {(a, b): tri_parte[d1[(a, b)]] if d1[(a, b)] < len(F) else parte2[a] for (a, b) in medio}
     for a, b in medio:
-        padre[raiz(a)] = raiz(b)
+        padre[raiz((a, lado_de[(a, b)]))] = raiz((b, lado_de[(a, b)]))
     grupos = defaultdict(list)
     for a, b in medio:
-        grupos[raiz(a)].append((a, b))
-    nuevos_v, nuevas_f, partes_extra, tapas = [], [], [], []
+        grupos[raiz((a, lado_de[(a, b)]))].append((a, b))
+    # cada borde se cierra con una pared que va hacia el eje de su parte (el hueso del brazo, el eje de la pierna
+    # o el centro del tronco): así la tapa queda dentro del volumen y no se ve como un abanico al mover el brazo
+    def eje(P, pid):
+        if pid in (BRAZO_D, BRAZO_I):
+            Jl = lado_J(J, -1 if pid == BRAZO_D else 1); sx = -1 if pid == BRAZO_D else 1
+            cad = [np.array([sx * Jl[k][0], Jl[k][1], 0.0]) for k in ("hom", "cod", "mun")]
+            mejor, dm = None, 9.0
+            for a, b in zip(cad[:-1], cad[1:]):
+                d = b - a; t = np.clip((P - a) @ d / (d @ d), 0, 1); q = a + t * d; dd = np.linalg.norm(P - q)
+                if dd < dm:
+                    mejor, dm = q, dd
+            return mejor
+        if pid in (PIERNA_D, PIERNA_I):
+            return np.array([(-1 if pid == PIERNA_D else 1) * J["xp"], P[1], 0.0])
+        return np.array([0.0, P[1], 0.0])
+    nuevos_v, nuevas_f, partes_extra, fuente = [], [], [], []
     base = len(V2)
     for g, lados in grupos.items():
         vs = sorted({a for e in lados for a in e})
         if len(vs) < 3:
             continue
-        centro = V2[vs].mean(axis=0)
-        # la tapa se hunde un poco hacia dentro para que no sobresalga
-        c = base + len(nuevos_v)
-        nuevos_v.append(centro); partes_extra.append(parte2[vs[0]])
+        pid = lado_de[lados[0]]; dentro = {}
+        for v in vs:
+            dentro[v] = base + len(nuevos_v)
+            # pared corta (2 % de la altura): si el eje queda fuera de una malla tosca, una pared larga asomaría
+            paso = 0.75 * (eje(V2[v], pid) - V2[v])
+            paso *= min(1.0, 0.02 / max(np.linalg.norm(paso), 1e-9))
+            nuevos_v.append(V2[v] + paso); partes_extra.append(pid); fuente.append(v)
         for a, b in lados:
-            nuevas_f.append([b, a, c]); tapas.append(True)
+            nuevas_f.append([b, a, dentro[a]]); nuevas_f.append([dentro[a], dentro[b], b])
     if nuevos_v:
         V2 = np.vstack([V2, np.array(nuevos_v)])
         parte2 = np.concatenate([parte2, np.array(partes_extra)])
         F2 = np.vstack([F2, np.array(nuevas_f)])
     es_tapa = np.concatenate([np.zeros(len(F), dtype=bool), np.ones(len(nuevas_f), dtype=bool)])
     origen = np.concatenate([np.array(origen), -np.ones(len(nuevos_v), dtype=np.int64)])
-    return V2, F2, parte2, origen, es_tapa, len(grupos)
+    fuente = np.concatenate([np.full(len(V2) - len(nuevos_v), -1, dtype=np.int64), np.array(fuente, dtype=np.int64)])
+    return V2, F2, parte2, origen, es_tapa, len(grupos), fuente
 
 
 # ---------------------------------------------------------------- zonas de color
@@ -653,6 +788,13 @@ def hornear(id_, depurar=None):
         V[:, 0] *= -1; V[:, 2] *= -1
     V, F, UV = quitar_cajas(V, F, cfg.get("quitar"), UV)
     V, F, UV = quitar_sueltas(V, F, cfg.get("piezaMinima", 40), UV)
+    if cfg.get("subdividir"):   # modelos con pocos triángulos: se cierran los agujeros de "quitar", se subdividen y se suavizan
+        V, F, UV = cerrar_huecos(V, F, UV)
+        V, F, UV = subdividir(V, F, UV, cfg["subdividir"], cfg.get("suavizarMalla", 8))
+        if cfg.get("quitarPicos"):
+            V = quitar_picos(V, F, 40, cfg["quitarPicos"])
+        if cfg.get("desplegar"):
+            V = desplegar(V, F, cfg["desplegar"])
     J = cfg["J"]; R = cfg["radios"]
     fn, area = normales_cara(V, F)
     vn = normales_vertice(V, F, fn, area)
@@ -672,24 +814,24 @@ def hornear(id_, depurar=None):
     parte[piernas & (V[:, 0] < 0)] = PIERNA_D
     parte[piernas & (V[:, 0] >= 0)] = PIERNA_I
     # rasgar y tapar
-    V2, F2, parte2, origen, es_tapa, n_tapas = rasgar(V, F, parte, J, cfg)
+    V2, F2, parte2, origen, es_tapa, n_tapas, fuente = rasgar(V, F, parte, J, cfg)
     if UV is not None:  # las tapas toman la textura de las esquinas vecinas; el centro, la media
         uv_v = np.zeros((len(V2), 2)); hay = np.zeros(len(V2), dtype=bool)
         for i in range(len(F)):
             for k in range(3):
                 uv_v[F2[i, k]] = UV[i, k]; hay[F2[i, k]] = True
         UVt = [UV]
+        nv = np.nonzero(fuente >= 0)[0]; uv_v[nv] = uv_v[fuente[nv]]   # la pared toma la textura de su borde
         for t in F2[len(F):]:
-            if not hay[t[2]]:
-                vec = [u for u in F2[len(F):] if u[2] == t[2]]
-                uv_v[t[2]] = np.mean([uv_v[u[0]] for u in vec], axis=0); hay[t[2]] = True
             UVt.append(uv_v[t][None])
         UV2 = np.concatenate(UVt)
     else:
         UV2 = None
-    sombra2 = np.where(origen >= 0, sombra[np.maximum(origen, 0)], 0.6)
+    sombra2 = np.where(origen >= 0, sombra[np.maximum(origen, 0)], 0.35)   # las paredes de dentro, en sombra
     alto2 = np.where(origen >= 0, alto[np.maximum(origen, 0)], 0.0)
     si, sw = pesos_parte(V2, parte2, J)
+    if cfg.get("suavizarPesos"):
+        si, sw = suavizar_pesos(si, sw, F2, cfg["suavizarPesos"])
     # zona de cada triángulo
     fn2, area2 = normales_cara(V2, F2)
     Vc = V2[F2].mean(axis=1)
@@ -703,7 +845,7 @@ def hornear(id_, depurar=None):
                 for v in t:
                     vf[v].append(i)
         for i in np.nonzero(es_tapa)[0]:
-            vec = [zona[j] for v in F2[i][:2] for j in vf[v]]
+            vec = [zona[j] for v in F2[i] for j in vf[v]]
             if vec:
                 zona[i] = np.bincount(vec).argmax()
     # normales: en la cabeza más suaves
@@ -752,6 +894,7 @@ def hornear(id_, depurar=None):
         meta["cara"] = {"c": g["c"], "ventana": g["ventana"], "GX": g["GX"], "GY": g["GY"]}
         out += g["z"].astype(np.float32).tobytes()
         out += np.round(g["n"] * 127).astype(np.int8).tobytes()
+    meta["bytes"] = len(out)   # el juego comprueba que el .bin y el .json son de la misma horneada (cachés de la web)
     destino = os.path.join(RAIZ, "modelos", "personajes")
     open(os.path.join(destino, id_ + ".bin"), "wb").write(out)
     json.dump(meta, open(os.path.join(destino, id_ + ".json"), "w"), ensure_ascii=False, separators=(",", ":"))
