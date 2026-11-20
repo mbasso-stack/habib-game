@@ -4,10 +4,10 @@ window.HG = window.HG || {};
 
 // Cuanto más cara es la nave, mejores son sus estadísticas de serie.
 HG.NAVES = [ // id: archivo en modelos/naves · largo: tamaño en el juego · motores y canones: posiciones en fracción del largo · ala: a qué distancia del centro van las armas extra
-  { id: "gorrion", nombre: HG.t("Gorrión"),       precio: 1000,   vel: 100, vida: 150,  dano: 10, bodega: 20,  huecos: 1, largo: 11, ala: 0.22, casco: "#e4e7ec", detalle: "#2b3038", franja: "#2f7fe0", motores: [[-0.163, -0.058, 0.48], [0.155, -0.053, 0.48]], canones: [[-0.051, -0.1, -0.48], [0.049, -0.1, -0.48]] },
+  { id: "gorrion", nombre: HG.t("Gorrión"),       precio: 1000,   vel: 100, vida: 150,  dano: 10, bodega: 20,  huecos: 1, largo: 11, ala: 0.12, casco: "#e4e7ec", detalle: "#2b3038", franja: "#2f7fe0", motores: [[-0.089, -0.051, 0.49], [0.084, -0.051, 0.49]], canones: [[-0.048, -0.066, -0.49], [0.046, -0.071, -0.49]] },
   { id: "lince",   nombre: HG.t("Lince"),         precio: 50000,  vel: 125, vida: 320,  dano: 18, bodega: 50,  huecos: 2, largo: 16, ala: 0.22, casco: "#e4e7ec", detalle: "#30353e", franja: "#ff7a1a", motores: [[-0.13, -0.066, 0.48], [0.13, -0.069, 0.48]], canones: [[-0.052, -0.142, -0.47], [0.053, -0.142, -0.47]] },
-  { id: "fenix",   nombre: HG.t("Fénix"),         precio: 220000, vel: 160, vida: 780,  dano: 38, bodega: 150, huecos: 3, largo: 23, ala: 0.12, casco: "#1c1e23", detalle: "#0e0f12", franja: "#d4a63a", motores: [[-0.089, -0.051, 0.49], [0.084, -0.051, 0.49]], canones: [[-0.048, -0.066, -0.49], [0.046, -0.071, -0.49]] },
-  { id: "prime",   nombre: HG.t("Haluski Prime"), precio: 800000, vel: 200, vida: 1500, dano: 60, bodega: 300, huecos: 4, largo: 30, ala: 0.18, casco: "#b0231b", detalle: "#17181c", franja: "#efe6d2", motores: [[-0.134, -0.031, 0.48], [0.134, -0.031, 0.48]], canones: [[-0.048, -0.068, -0.48], [0.047, -0.064, -0.48]] },
+  { id: "fenix",   nombre: HG.t("Fénix"),         precio: 220000, vel: 160, vida: 780,  dano: 38, bodega: 150, huecos: 3, largo: 23, ala: 0.18, casco: "#1c1e23", detalle: "#0e0f12", franja: "#d4a63a", motores: [[-0.134, -0.031, 0.48], [0.134, -0.031, 0.48]], canones: [[-0.048, -0.068, -0.48], [0.047, -0.064, -0.48]] },
+  { id: "prime",   nombre: HG.t("Haluski Prime"), precio: 800000, vel: 200, vida: 1500, dano: 60, bodega: 300, huecos: 4, largo: 30, ala: 0.22, casco: "#b0231b", detalle: "#17181c", franja: "#efe6d2", motores: [[-0.163, -0.058, 0.48], [0.155, -0.053, 0.48]], canones: [[-0.051, -0.1, -0.48], [0.049, -0.1, -0.48]] },
 ];
 // Mejoras de cada nave: 3 ramas de 5 niveles. Coste según el precio de la nave.
 HG.RAMAS = [
